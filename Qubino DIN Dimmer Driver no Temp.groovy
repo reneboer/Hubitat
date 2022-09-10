@@ -1,7 +1,7 @@
 /**
  *  Qubino DIN Dimmer no Temp
  *	Device Handler 
- *	Version 1.02
+ *	Version 1.05
  *  Date: 15.8.2022
  *	Author: Kristjan Jam&scaron;ek (Kjamsek), Goap d.o.o.
  *  Post V1.0 updates: Rene Boer
@@ -38,6 +38,7 @@
  *  1.02: Added loggin options. Shortened text for device parameters. Get the manual when updating.
  *  1.03: Added event handler for zwave.commands.switchmultilevelv4.SwitchMultilevelSet
  *  1.04: Removed ST specifics (tiles, simulation)
+ *  1.05: Added default for preferences, removed debug messages when debug is off.
  */
 metadata {
 	definition (name: "Qubino DIN Dimmer no Temp", namespace: "Goap", author: "Kristjan Jam&scaron;ek") {
@@ -75,69 +76,69 @@ metadata {
 					title: "CONFIGURATION PARAMETERS:",
 					description: "Configuration parameter settings."
 				)
-				input name: "param1", type: "enum", required: false,
+				input name: "param1", type: "enum", required: false, defaultValue: 0,
 					options: ["0" : "0 - mono-stable switch type (push button)",
 							  "1" : "1 - Bi-stable switch type"],
 					title: "1. Input 1 switch type."
 				
-				input name: "param5", type: "enum", required: false,
+				input name: "param5", type: "enum", required: false, defaultValue: 0,
 					options: ["0" : "0 - Dimmer mode",
 							  "1" : "1 - Switch mode"],
 					title: "5. Module function."
 						   
-				input name: "param10", type: "enum", required: false,
+				input name: "param10", type: "enum", required: false, defaultValue: 255,
 					options: ["0" : "0 - ALL ON is not active, ALL OFF is not active",
 							  "1" : "1 - ALL ON is not active, ALL OFF active",
 							  "2" : "2 - ALL ON active, ALL OFF is not active",
 							  "255" : "255 - ALL ON active, ALL OFF active"],
 					title: "10. Activate / deactivate functions ALL ON / ALL OFF."
 				
-				input name: "param11", type: "number", range: "0..32536", required: false,
+				input name: "param11", type: "number", range: "0..32536", required: false, defaultValue: 0,
 					title: "11. Automatic turning off output after set time in seconds."
 							
-				input name: "param12", type: "number", range: "0..32536", required: false,
+				input name: "param12", type: "number", range: "0..32536", required: false, defaultValue: 0,
 					title: "12. Automatic turning on output after set time in seconds."
 
-				input name: "param21", type: "enum", required: false,
+				input name: "param21", type: "enum", required: false, defaultValue: 0,
 					options: ["0" : "0 - Double click disabled",
 							  "1" : "1 - Double click enabled"],
 					title: "21. Enable/Disable Double click function."
 							
-				input name: "param30", type: "enum", required: false,
+				input name: "param30", type: "enum", required: false, defaultValue: 0,
 					options: ["0" : "0 - DIN Dimmer module saves its state before power failure (it returns to the last position saved before a power failure)",
 							  "1" : "1 - DIN Dimmer module does not save the state after a power failure, it returns to 'off' position"],
 					title: "30. Saving the state of the device after a power failure."
 				
-				input name: "param40", type: "number", range: "0..100", required: false,
+				input name: "param40", type: "number", range: "0..100", required: false, defaultValue: 5,
 					title: "40. Power reporting in Watts on power change."
 							
-				input name: "param42", type: "number", range: "0..32767", required: false,
+				input name: "param42", type: "number", range: "0..32767", required: false, defaultValue: 0,
 					title: "42. Power reporting in Watts by time interval."
 
-				input name: "param60", type: "number", range: "1..98", required: false,
+				input name: "param60", type: "number", range: "1..98", required: false, defaultValue: 1,
 					title: "60. Minimum dimming value."
 
-				input name: "param61", type: "number", range: "1..99", required: false,
+				input name: "param61", type: "number", range: "1..99", required: false, defaultValue: 99,
 					title: "61. Maximum dimming value."
 
-				input name: "param65", type: "number", range: "50..255", required: false,
+				input name: "param65", type: "number", range: "50..255", required: false, defaultValue: 100,
 					title: "65. Dimming time (soft on/off) in mili seconds."
 
-				input name: "param66", type: "number", range: "1..255", required: false,
+				input name: "param66", type: "number", range: "1..255", required: false, defaultValue: 3,
 					title: "66. Dimming time when key pressed in seconds."
 
-				input name: "param67", type: "enum", required: false,
-					options: ["0" : "0 - (respect start level)",
-							  "1" : "1 - (ignore start level)"],
+				input name: "param67", type: "enum", required: false, defaultValue: 0,
+					options: ["0" : "0 - Respect start level",
+							  "1" : "1 - Ignore start level"],
 					title: "67. Ignore start level."
 
-				input name: "param68", type: "number", range: "0..127", required: false,
+				input name: "param68", type: "number", range: "0..127", required: false, defaultValue: 0,
 					title: "68. Dimming duration in seconds."
 
-				input name: "param110", type: "number", range: "1..32536", required: false,
+				input name: "param110", type: "number", range: "1..32536", required: false, defaultValue: 32356,
 					title: "110. Temperature sensor offset settings."
 
-				input name: "param120", type: "number", range: "0..127", required: false,
+				input name: "param120", type: "number", range: "0..127", required: false, defaultValue: 5,
 					title: "120. Digital temperature sensor reporting."
 			
 /**
@@ -166,8 +167,14 @@ metadata {
 					title: "Association group 5: \n" +
 						   "Multilevel Sensor Report (triggered at the change od temperature sensor values)."
 						   
+				input (
+					type: "paragraph",
+					element: "paragraph",
+					title: "Debug settings:",
+					description: "Driver debug settings. "
+				)
                 input name: "logEnable", type: "bool", title: "Enable debug logging", defaultValue: true
-                input name: "txtEnable", type: "bool", title: "Enable descriptionText logging", defaultValue: true
+                input name: "txtEnable", type: "bool", title: "Enable descriptionText logging", defaultValue: false
 
 	}
 }

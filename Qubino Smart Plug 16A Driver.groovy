@@ -1,7 +1,7 @@
 /**
  *  Qubino Smart Plug 16A ZMNHYDx
  *	Device Handler 
- *	Version 1.00
+ *	Version 0.02
  *  Date: 10.9.2022
  *	Author: Rene Boer
  *  Copyright , none free to use
@@ -21,6 +21,7 @@
  *
  *	CHANGELOG:
  *	0.01: First release
+ *  0.02: Added default for preferences, removed debug messages when debug is off.
  */
 metadata {
 	definition (name: "Qubino Smart Plug 16A", namespace: "Goap", author: "Rene Boer") {
@@ -53,30 +54,30 @@ metadata {
 					title: "CONFIGURATION PARAMETERS:",
 					description: "Configuration parameter settings."
 				)
-				input name: "param11", type: "number", range: "0..32536", required: false,
+				input name: "param11", type: "number", range: "0..32536", required: false, defaultValue: 0,
 					title: "11. Automatic turning off output after set time in seconds. 0 = Disabled."
 							
-				input name: "param12", type: "number", range: "0..32536", required: false,
+				input name: "param12", type: "number", range: "0..32536", required: false, defaultValue: 0,
 					title: "12. Automatic turning on output after set time in seconds. 0 = Disabled."
 
-				input name: "param30", type: "enum", required: false,
+				input name: "param30", type: "enum", required: false, defaultValue: 0,
 					options: ["0" : "0 - Switch saves its state before power failure (it returns to the last position saved before a power failure)",
 							  "1" : "1 - Switch does not save the state after a power failure, it returns to 'off' position"],
 					title: "30. Saving the state of the device after a power failure."
 				
-				input name: "param40", type: "number", range: "0..100", required: false,
+				input name: "param40", type: "number", range: "0..100", required: false, defaultValue: 20,
 					title: "40. Watt Power Consumption Reporting Threshold."
 							
-				input name: "param42", type: "number", range: "0..32767", required: false,
+				input name: "param42", type: "number", range: "0..32767", required: false, defaultValue: 0,
 					title: "42. Power reporting in Watts by time interval."
 
-				input name: "param50", type: "number", range: "0..4000", required: false,
+				input name: "param50", type: "number", range: "0..4000", required: false, defaultValue: 30,
 					title: "50. Down value."
 
-				input name: "param51", type: "number", range: "0..4000", required: false,
+				input name: "param51", type: "number", range: "0..4000", required: false, defaultValue: 50,
 					title: "51. Up value."
 
-				input name: "param52", type: "enum", required: false,
+				input name: "param52", type: "enum", required: false, defaultValue: 6,
 					options: ["0" : "0 – function inactive",
 							  "1" : "1 - turn the associated devices on, once the power drops below Down value",
 							  "2" : "2 - turn the associated devices off, once the power drops below Down value",
@@ -86,21 +87,21 @@ metadata {
 							  "6" : "6 - 2 and 3 combined"],
 					title: "52. Action in case of exceeding defined power values."
 
-				input name: "param70", type: "number", range: "0..4000", required: false,
+				input name: "param70", type: "number", range: "0..4000", required: false, defaultValue: 0,
 					title: "70. Overload safety switch. 0 = not active."
 
-				input name: "param71", type: "number", range: "0..4000", required: false,
+				input name: "param71", type: "number", range: "0..4000", required: false, defaultValue: 0,
 					title: "71. Power threshold. 0 = not active."
 
-				input name: "param72", type: "number", range: "0..125", required: false,
-					title: "72. Time interval."
+				input name: "param72", type: "number", range: "0..125", required: false, defaultValue: 1,
+					title: "72. Program completed notification Time interval."
 
-				input name: "param73", type: "enum", required: false,
+				input name: "param73", type: "enum", required: false, defaultValue: 0,
 					options: ["0" : "0 - function disabled",
 							  "1" : "1 - turn OFF relay once the notification Program completed is sent"],
 					title: "73. Turn Smart Plug OFF."
 
-				input name: "param74", type: "enum", required: false,
+				input name: "param74", type: "enum", required: false, defaultValue: 1,
 					options: ["0" : "0 - LED is disabled",
 							  "1" : "1 - LED is enabled"],
 					title: "74. Enable/disable LED."
@@ -123,8 +124,14 @@ metadata {
 					title: "Association group 3: \n" +
 						   "Plug Threshold"
 						   
+				input (
+					type: "paragraph",
+					element: "paragraph",
+					title: "Debug settings:",
+					description: "Driver debug settings. "
+				)
                 input name: "logEnable", type: "bool", title: "Enable debug logging", defaultValue: true
-                input name: "txtEnable", type: "bool", title: "Enable descriptionText logging", defaultValue: true
+                input name: "txtEnable", type: "bool", title: "Enable descriptionText logging", defaultValue: false
 
 	}
 }
@@ -205,6 +212,7 @@ def refreshPowerConsumption() {
 	delayBetween([
 		zwave.meterV2.meterGet(scale: 0).format(),
 		zwave.meterV2.meterGet(scale: 2).format(),
+		zwave.meterV2.meterGet(scale: 3).format(),
 		zwave.meterV2.meterGet(scale: 4).format(),
 		zwave.meterV2.meterGet(scale: 5).format()
     ], 1000)
@@ -222,6 +230,7 @@ def resetPower() {
 		zwave.meterV2.meterReset().format(),
 		zwave.meterV2.meterGet(scale: 0).format(),
 		zwave.meterV2.meterGet(scale: 2).format(),
+		zwave.meterV2.meterGet(scale: 3).format(),
 		zwave.meterV2.meterGet(scale: 4).format(),
 		zwave.meterV2.meterGet(scale: 5).format()
     ], 1000)
@@ -385,6 +394,10 @@ def zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd) {
 				log.debug("power report is ${cmd.scaledMeterValue} W")
 				result << createEvent(name:"power", value: cmd.scaledMeterValue, unit:"W", descriptionText:"${device.displayName} consumes ${cmd.scaledMeterValue} W")
 				break;
+			case 3:
+				log.debug("frequency report is ${cmd.scaledMeterValue} Hz")
+				result << createEvent(name:"frequency", value: cmd.scaledMeterValue, unit:"Hz", descriptionText:"${device.displayName} level ${cmd.scaledMeterValue} Hz")
+				break;
 			case 4:
 				log.debug("voltage report is ${cmd.scaledMeterValue} V")
 				result << createEvent(name:"voltage", value: cmd.scaledMeterValue, unit:"V", descriptionText:"${device.displayName} level ${cmd.scaledMeterValue} V")
@@ -506,23 +519,27 @@ def zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd, hubitat.zwave.com
 	if (cmd.meterType == 1) {
 		switch(cmd.scale){
 			case 0:
-				log.debug("energy report is ${cmd.scaledMeterValue} kWh")
+				if (logEnable) log.debug("energy report is ${cmd.scaledMeterValue} kWh")
 				result << createEvent(name:"energy", value: cmd.scaledMeterValue, unit:"kWh", descriptionText:"${device.displayName} consumed ${cmd.scaledMeterValue} kWh")
 				break;
 			case 1:
-				log.debug("energy report is ${cmd.scaledMeterValue} kVah")
+				if (logEnable) log.debug("energy report is ${cmd.scaledMeterValue} kVah")
 				result << createEvent(name:"energy", value: cmd.scaledMeterValue, unit:"kVah", descriptionText:"${device.displayName} consumed ${cmd.scaledMeterValue} kVah")
 				break;
 			case 2:
-				log.debug("power report is ${cmd.scaledMeterValue} W")
+				if (logEnable) log.debug("power report is ${cmd.scaledMeterValue} W")
 				result << createEvent(name:"power", value: cmd.scaledMeterValue, unit:"W", descriptionText:"${device.displayName} consumes ${cmd.scaledMeterValue} W")
 				break;
+			case 3:
+				if (logEnable) log.debug("frequency report is ${cmd.scaledMeterValue} Hz")
+				result << createEvent(name:"frequency", value: cmd.scaledMeterValue, unit:"Hz", descriptionText:"${device.displayName} level ${cmd.scaledMeterValue} Hz")
+				break;
 			case 4:
-				log.debug("voltage report is ${cmd.scaledMeterValue} V")
+				if (logEnable) log.debug("voltage report is ${cmd.scaledMeterValue} V")
 				result << createEvent(name:"voltage", value: cmd.scaledMeterValue, unit:"V", descriptionText:"${device.displayName} level ${cmd.scaledMeterValue} V")
 				break;
 			case 5:
-				log.debug("amperage report is ${cmd.scaledMeterValue} A")
+				if (logEnable) log.debug("amperage report is ${cmd.scaledMeterValue} A")
 				result << createEvent(name:"amperage", value: cmd.scaledMeterValue, unit:"A", descriptionText:"${device.displayName} consumes ${cmd.scaledMeterValue} A")
 				break;
 			default:
