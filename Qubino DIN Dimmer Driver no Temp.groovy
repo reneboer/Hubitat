@@ -1,8 +1,8 @@
 /**
  *  Qubino DIN Dimmer no Temp
  *	Device Handler 
- *	Version 1.05
- *  Date: 15.8.2022
+ *	Version 1.06
+ *  Date: 14.9.2022
  *	Author: Kristjan Jam&scaron;ek (Kjamsek), Goap d.o.o.
  *  Post V1.0 updates: Rene Boer
  *  Copyright 2017 Kristjan Jam&scaron;ek
@@ -39,6 +39,7 @@
  *  1.03: Added event handler for zwave.commands.switchmultilevelv4.SwitchMultilevelSet
  *  1.04: Removed ST specifics (tiles, simulation)
  *  1.05: Added default for preferences, removed debug messages when debug is off.
+ *  1.06: Added power refresh after switch off.
  */
 metadata {
 	definition (name: "Qubino DIN Dimmer no Temp", namespace: "Goap", author: "Kristjan Jam&scaron;ek") {
@@ -226,7 +227,7 @@ def on() {
         delayBetween([
 				zwave.switchMultilevelV3.switchMultilevelSet(value: 0xFF, dimmingDuration: 0x00).format(),
 				zwave.switchMultilevelV1.switchMultilevelGet().format()
-        ], 1000)  
+        ], 500)  
 }
 /**
  * Switch capability command handler for OFF state. It issues a Switch Multilevel Set command with value 0x00 and instantaneous dimming duration.
@@ -238,8 +239,9 @@ def on() {
 def off() {
         delayBetween([
 				zwave.switchMultilevelV3.switchMultilevelSet(value: 0x00, dimmingDuration: 0x00).format(),
-				zwave.switchMultilevelV1.switchMultilevelGet().format()
-        ], 1000)
+				zwave.switchMultilevelV1.switchMultilevelGet().format(),
+        		zwave.meterV2.meterGet(scale: 2).format()
+        ], 500)
 }
 /**
  * Switch Level capability command handler for a positive dimming state. It issues a Switch Multilevel Set command with value contained in the parameter value and instantaneous dimming duration.
@@ -254,7 +256,7 @@ def setLevel(level) {
     delayBetween([
 		zwave.switchMultilevelV3.switchMultilevelSet(value: newValue, dimmingDuration: 0x00).format(),
 		zwave.switchMultilevelV1.switchMultilevelGet().format()
-    ], 1000)
+    ], 500)
 }
 
 /**
@@ -268,7 +270,7 @@ def refreshPowerConsumption() {
 	delayBetween([
 		zwave.meterV2.meterGet(scale: 0).format(),
 		zwave.meterV2.meterGet(scale: 2).format()
-    ], 1000)
+    ], 500)
 }
 /**
  * Reset Power Consumption command handler for resetting the cumulative consumption fields in kWh. It will issue a Meter Reset command followed by Meter Get commands for active and accumulated power.
@@ -283,7 +285,7 @@ def resetPower() {
 		zwave.meterV2.meterReset(),
 		zwave.meterV2.meterGet(scale: 0).format(),
 		zwave.meterV2.meterGet(scale: 2).format()
-    ], 1000)
+    ], 500)
 }
 
 /**
@@ -479,11 +481,11 @@ def zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd) {
 	def result = []
 	switch(cmd.scale){
 		case 0:
-            log.debug("energy report is ${cmd.scaledMeterValue} kWh")
+            if (logEnable) log.debug("energy report is ${cmd.scaledMeterValue} kWh")
 			result << createEvent(name:"energy", value: cmd.scaledMeterValue, unit:"kWh", descriptionText:"${device.displayName} consumed ${cmd.scaledMeterValue} kWh")
             break;
 		case 2:
-            log.debug("power report is ${cmd.scaledMeterValue} W")
+            if (logEnable) log.debug("power report is ${cmd.scaledMeterValue} W")
 			result << createEvent(name:"power", value: cmd.scaledMeterValue, unit:"W", descriptionText:"${device.displayName} consumes ${cmd.scaledMeterValue} W")
 			break;
         default:

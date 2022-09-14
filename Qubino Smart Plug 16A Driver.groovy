@@ -1,8 +1,8 @@
 /**
  *  Qubino Smart Plug 16A ZMNHYDx
  *	Device Handler 
- *	Version 0.02
- *  Date: 10.9.2022
+ *	Version 0.03
+ *  Date: 14.9.2022
  *	Author: Rene Boer
  *  Copyright , none free to use
  *
@@ -22,6 +22,7 @@
  *	CHANGELOG:
  *	0.01: First release
  *  0.02: Added default for preferences, removed debug messages when debug is off.
+ *  0.03: Added power & amperage refresh after switch off.
  */
 metadata {
 	definition (name: "Qubino Smart Plug 16A", namespace: "Goap", author: "Rene Boer") {
@@ -43,96 +44,103 @@ metadata {
 		fingerprint  mfr:"0159", prod:"0002", model:"0054"
 	}
 
-
 	preferences {
+		section {
+			image(name: 'educationalcontent', multiple: true, images: [
+				"https://raw.githubusercontent.com/reneboer/Hubitat/qubino-smart-plug.jpg"
+				])
+		}
+		section {
 /**
 *			--------	CONFIGURATION PARAMETER SECTION	--------
 */
-                input (
-					type: "paragraph",
-					element: "paragraph",
-					title: "CONFIGURATION PARAMETERS:",
-					description: "Configuration parameter settings."
-				)
-				input name: "param11", type: "number", range: "0..32536", required: false, defaultValue: 0,
-					title: "11. Automatic turning off output after set time in seconds. 0 = Disabled."
-							
-				input name: "param12", type: "number", range: "0..32536", required: false, defaultValue: 0,
-					title: "12. Automatic turning on output after set time in seconds. 0 = Disabled."
+            input (
+				type: "paragraph",
+				element: "paragraph",
+				title: "CONFIGURATION PARAMETERS:",
+				description: "Configuration parameter settings."
+			)
+			input name: "param11", type: "number", range: "0..32536", required: false, defaultValue: 0,
+				title: "11. Automatic turning off output after set time in seconds. 0 = Disabled."
 
-				input name: "param30", type: "enum", required: false, defaultValue: 0,
-					options: ["0" : "0 - Switch saves its state before power failure (it returns to the last position saved before a power failure)",
-							  "1" : "1 - Switch does not save the state after a power failure, it returns to 'off' position"],
-					title: "30. Saving the state of the device after a power failure."
+			input name: "param12", type: "number", range: "0..32536", required: false, defaultValue: 0,
+				title: "12. Automatic turning on output after set time in seconds. 0 = Disabled."
+
+			input name: "param30", type: "enum", required: false, defaultValue: 0,
+				options: ["0" : "0 - Switch saves its state before power failure (it returns to the last position saved before a power failure)",
+						  "1" : "1 - Switch does not save the state after a power failure, it returns to 'off' position"],
+				title: "30. Saving the state of the device after a power failure."
 				
-				input name: "param40", type: "number", range: "0..100", required: false, defaultValue: 20,
-					title: "40. Watt Power Consumption Reporting Threshold."
-							
-				input name: "param42", type: "number", range: "0..32767", required: false, defaultValue: 0,
-					title: "42. Power reporting in Watts by time interval."
+			input name: "param40", type: "number", range: "0..100", required: false, defaultValue: 20,
+				title: "40. Watt Power Consumption Reporting Threshold."
 
-				input name: "param50", type: "number", range: "0..4000", required: false, defaultValue: 30,
-					title: "50. Down value."
+			input name: "param42", type: "number", range: "0..32767", required: false, defaultValue: 0,
+				title: "42. Power reporting in Watts by time interval."
 
-				input name: "param51", type: "number", range: "0..4000", required: false, defaultValue: 50,
-					title: "51. Up value."
+			input name: "param50", type: "number", range: "0..4000", required: false, defaultValue: 30,
+				title: "50. Down value."
 
-				input name: "param52", type: "enum", required: false, defaultValue: 6,
-					options: ["0" : "0 – function inactive",
-							  "1" : "1 - turn the associated devices on, once the power drops below Down value",
-							  "2" : "2 - turn the associated devices off, once the power drops below Down value",
-							  "3" : "3 - turn the associated devices on, once the power rises above Up value",
-							  "4" : "4 - turn the associated devices off, once the power rises above Up value",
-							  "5" : "5 - 1 and 4 combined",
-							  "6" : "6 - 2 and 3 combined"],
-					title: "52. Action in case of exceeding defined power values."
+			input name: "param51", type: "number", range: "0..4000", required: false, defaultValue: 50,
+				title: "51. Up value."
 
-				input name: "param70", type: "number", range: "0..4000", required: false, defaultValue: 0,
-					title: "70. Overload safety switch. 0 = not active."
+			input name: "param52", type: "enum", required: false, defaultValue: 6,
+				options: ["0" : "0 – function inactive",
+						  "1" : "1 - turn the associated devices on, once the power drops below Down value",
+						  "2" : "2 - turn the associated devices off, once the power drops below Down value",
+						  "3" : "3 - turn the associated devices on, once the power rises above Up value",
+						  "4" : "4 - turn the associated devices off, once the power rises above Up value",
+						  "5" : "5 - 1 and 4 combined",
+						  "6" : "6 - 2 and 3 combined"],
+				title: "52. Action in case of exceeding defined power values."
 
-				input name: "param71", type: "number", range: "0..4000", required: false, defaultValue: 0,
-					title: "71. Power threshold. 0 = not active."
+			input name: "param70", type: "number", range: "0..4000", required: false, defaultValue: 0,
+				title: "70. Overload safety switch. 0 = not active."
 
-				input name: "param72", type: "number", range: "0..125", required: false, defaultValue: 1,
-					title: "72. Program completed notification Time interval."
+			input name: "param71", type: "number", range: "0..4000", required: false, defaultValue: 0,
+				title: "71. Power threshold. 0 = not active."
 
-				input name: "param73", type: "enum", required: false, defaultValue: 0,
-					options: ["0" : "0 - function disabled",
-							  "1" : "1 - turn OFF relay once the notification Program completed is sent"],
-					title: "73. Turn Smart Plug OFF."
+			input name: "param72", type: "number", range: "0..125", required: false, defaultValue: 1,
+				title: "72. Program completed notification Time interval."
 
-				input name: "param74", type: "enum", required: false, defaultValue: 1,
-					options: ["0" : "0 - LED is disabled",
-							  "1" : "1 - LED is enabled"],
-					title: "74. Enable/disable LED."
-			
+			input name: "param73", type: "enum", required: false, defaultValue: 0,
+				options: ["0" : "0 - function disabled",
+						  "1" : "1 - turn OFF relay once the notification Program completed is sent"],
+				title: "73. Turn Smart Plug OFF."
+
+			input name: "param74", type: "enum", required: false, defaultValue: 1,
+				options: ["0" : "0 - LED is disabled",
+						  "1" : "1 - LED is enabled"],
+				title: "74. Enable/disable LED."
+		}
+		section {
 /**
 *			--------	ASSOCIATION GROUP SECTION	--------
 */
-				input (
-					type: "paragraph",
-					element: "paragraph",
-					title: "ASSOCIATION GROUPS:",
-					description: "Association group settings. Up to 16 nodes per group.\n" +
-						   "NOTE: Insert the node Id value of the devices you wish to associate this group with. Multiple nodeIds can also be set at once by separating individual values by a comma (2,3,...)."
-				)
-				input name: "assocGroup2", type: "text", required: false,
-					title: "Association group 2: \n" +
-						   "Basic on/off."
-						   
-				input name: "assocGroup3", type: "text", required: false,
-					title: "Association group 3: \n" +
-						   "Plug Threshold"
-						   
-				input (
-					type: "paragraph",
-					element: "paragraph",
-					title: "Debug settings:",
-					description: "Driver debug settings. "
-				)
-                input name: "logEnable", type: "bool", title: "Enable debug logging", defaultValue: true
-                input name: "txtEnable", type: "bool", title: "Enable descriptionText logging", defaultValue: false
+			input (
+				type: "paragraph",
+				element: "paragraph",
+				title: "ASSOCIATION GROUPS:",
+				description: "Association group settings. Up to 16 nodes per group.\n" +
+					   "NOTE: Insert the node Id value of the devices you wish to associate this group with. Multiple nodeIds can also be set at once by separating individual values by a comma (2,3,...)."
+			)
+			input name: "assocGroup2", type: "text", required: false,
+				title: "Association group 2: \n" +
+					   "Basic on/off."
 
+			input name: "assocGroup3", type: "text", required: false,
+				title: "Association group 3: \n" +
+					   "Plug Threshold"
+		}
+		section {
+			input (
+				type: "paragraph",
+				element: "paragraph",
+				title: "Debug settings:",
+				description: "Driver debug settings. "
+			)
+            input name: "logEnable", type: "bool", title: "Enable debug logging", defaultValue: true
+            input name: "txtEnable", type: "bool", title: "Enable descriptionText logging", defaultValue: false
+		}
 	}
 }
 /**
@@ -184,7 +192,7 @@ def on() {
 	delayBetween([
 		zwave.basicV1.basicSet(value: 0xFF).format(),
 		zwave.switchBinaryV1.switchBinaryGet().format()
-    ], 1000)  
+    ], 500)  
 }
 /**
  * Switch capability command handler for OFF state. It issues a Switch Multilevel Set command with value 0x00 and instantaneous dimming duration.
@@ -197,8 +205,10 @@ def off() {
 	if (logEnable) log.debug "Qubino Smart Plug 16A: off()"
     delayBetween([
 		zwave.basicV1.basicSet(value: 0x00).format(),
-		zwave.switchBinaryV1.switchBinaryGet().format()
-    ], 1000)
+		zwave.switchBinaryV1.switchBinaryGet().format(),
+		zwave.meterV2.meterGet(scale: 2).format(),
+		zwave.meterV2.meterGet(scale: 5).format()
+    ], 500)
 }
 
 /**
@@ -212,10 +222,9 @@ def refreshPowerConsumption() {
 	delayBetween([
 		zwave.meterV2.meterGet(scale: 0).format(),
 		zwave.meterV2.meterGet(scale: 2).format(),
-		zwave.meterV2.meterGet(scale: 3).format(),
 		zwave.meterV2.meterGet(scale: 4).format(),
 		zwave.meterV2.meterGet(scale: 5).format()
-    ], 1000)
+    ], 500)
 }
 /**
  * Reset Power Consumption command handler for resetting the cumulative consumption fields in kWh. It will issue a Meter Reset command followed by Meter Get commands for active and accumulated power.
@@ -230,10 +239,9 @@ def resetPower() {
 		zwave.meterV2.meterReset().format(),
 		zwave.meterV2.meterGet(scale: 0).format(),
 		zwave.meterV2.meterGet(scale: 2).format(),
-		zwave.meterV2.meterGet(scale: 3).format(),
 		zwave.meterV2.meterGet(scale: 4).format(),
 		zwave.meterV2.meterGet(scale: 5).format()
-    ], 1000)
+    ], 500)
 }
 
 /**
