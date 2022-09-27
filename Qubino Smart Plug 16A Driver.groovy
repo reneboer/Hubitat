@@ -1,9 +1,9 @@
 /**
  *  Qubino Smart Plug 16A ZMNHYDx
- *	Device Handler 
- *	Version 0.03
- *  Date: 14.9.2022
- *	Author: Rene Boer
+ *  Device Handler 
+ *  Version 0.04
+ *  Date: 27.9.2022
+ *  Author: Rene Boer
  *  Copyright , none free to use
  *
  * |---------------------------- DEVICE HANDLER FOR QUBINO SMART PLUG 16A Z-WAVE DEVICE -------------------------------------------------------|  
@@ -23,6 +23,7 @@
  *	0.01: First release
  *  0.02: Added default for preferences, removed debug messages when debug is off.
  *  0.03: Added power & amperage refresh after switch off.
+ *  0.04: Added html formatted attribute to display W, V, A and KWh in one tile
  */
 metadata {
 	definition (name: "Qubino Smart Plug 16A", namespace: "Goap", author: "Rene Boer") {
@@ -34,6 +35,8 @@ metadata {
         capability "CurrentMeter"
 		capability "Sensor"
 		capability "Configuration" //Needed for configure() function to set any specific configurations
+        
+        attribute "htmlTile", "string";  // To display all readings in one tile.
 
 		command "setConfiguration" //command to issue Configuration Set commands to the module according to user preferences
 		command "setAssociation" //command to issue Association Set commands to the modules according to user preferences
@@ -393,26 +396,32 @@ def zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd) {
 			case 0:
 				log.debug("energy report is ${cmd.scaledMeterValue} kWh")
 				result << createEvent(name:"energy", value: cmd.scaledMeterValue, unit:"kWh", descriptionText:"${device.displayName} consumed ${cmd.scaledMeterValue} kWh")
+                bChanged = true
 				break;
 			case 1:
 				log.debug("energy report is ${cmd.scaledMeterValue} kVah")
 				result << createEvent(name:"energy", value: cmd.scaledMeterValue, unit:"kVah", descriptionText:"${device.displayName} consumed ${cmd.scaledMeterValue} kVah")
+                bChanged = true
 				break;
 			case 2:
 				log.debug("power report is ${cmd.scaledMeterValue} W")
 				result << createEvent(name:"power", value: cmd.scaledMeterValue, unit:"W", descriptionText:"${device.displayName} consumes ${cmd.scaledMeterValue} W")
+                bChanged = true
 				break;
 			case 3:
 				log.debug("frequency report is ${cmd.scaledMeterValue} Hz")
 				result << createEvent(name:"frequency", value: cmd.scaledMeterValue, unit:"Hz", descriptionText:"${device.displayName} level ${cmd.scaledMeterValue} Hz")
+                bChanged = true
 				break;
 			case 4:
 				log.debug("voltage report is ${cmd.scaledMeterValue} V")
 				result << createEvent(name:"voltage", value: cmd.scaledMeterValue, unit:"V", descriptionText:"${device.displayName} level ${cmd.scaledMeterValue} V")
+                bChanged = true
 				break;
 			case 5:
 				log.debug("amperage report is ${cmd.scaledMeterValue} A")
 				result << createEvent(name:"amperage", value: cmd.scaledMeterValue, unit:"A", descriptionText:"${device.displayName} consumes ${cmd.scaledMeterValue} A")
+                bChanged = true
 				break;
 			default:
 				log.warn("Unsupported scale. Skipped cmd: ${cmd}")
@@ -421,6 +430,7 @@ def zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd) {
 	else {
 		log.warn("Unsupported meter type. Skipped cmd: ${cmd}")
     }    
+    if (bChanged) { UpdateTile() }
 	return result
 }
 
@@ -523,32 +533,39 @@ def zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd, hubitat.zwave.com
 	    log.debug command
 	    log.debug cmd
     }
+    def bChanged = false
 	def result = []
 	if (cmd.meterType == 1) {
 		switch(cmd.scale){
 			case 0:
 				if (logEnable) log.debug("energy report is ${cmd.scaledMeterValue} kWh")
 				result << createEvent(name:"energy", value: cmd.scaledMeterValue, unit:"kWh", descriptionText:"${device.displayName} consumed ${cmd.scaledMeterValue} kWh")
+                bChanged = true
 				break;
 			case 1:
 				if (logEnable) log.debug("energy report is ${cmd.scaledMeterValue} kVah")
 				result << createEvent(name:"energy", value: cmd.scaledMeterValue, unit:"kVah", descriptionText:"${device.displayName} consumed ${cmd.scaledMeterValue} kVah")
+                bChanged = true
 				break;
 			case 2:
 				if (logEnable) log.debug("power report is ${cmd.scaledMeterValue} W")
 				result << createEvent(name:"power", value: cmd.scaledMeterValue, unit:"W", descriptionText:"${device.displayName} consumes ${cmd.scaledMeterValue} W")
+                bChanged = true
 				break;
 			case 3:
 				if (logEnable) log.debug("frequency report is ${cmd.scaledMeterValue} Hz")
 				result << createEvent(name:"frequency", value: cmd.scaledMeterValue, unit:"Hz", descriptionText:"${device.displayName} level ${cmd.scaledMeterValue} Hz")
+                bChanged = true
 				break;
 			case 4:
 				if (logEnable) log.debug("voltage report is ${cmd.scaledMeterValue} V")
 				result << createEvent(name:"voltage", value: cmd.scaledMeterValue, unit:"V", descriptionText:"${device.displayName} level ${cmd.scaledMeterValue} V")
+                bChanged = true
 				break;
 			case 5:
 				if (logEnable) log.debug("amperage report is ${cmd.scaledMeterValue} A")
 				result << createEvent(name:"amperage", value: cmd.scaledMeterValue, unit:"A", descriptionText:"${device.displayName} consumes ${cmd.scaledMeterValue} A")
+                bChanged = true
 				break;
 			default:
 				log.warn("Unsupported scale. Skipped cmd: ${cmd}")
@@ -556,6 +573,17 @@ def zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd, hubitat.zwave.com
 	}
 	else {
 		log.warn("Unsupported MeterType. Skipped cmd: ${cmd}")
-    }    
+    }
+    if (bChanged) { UpdateTile() }
 	return result
+}
+
+private void UpdateTile(  ){
+    def val = ""
+    
+    // Create special compound/html tile
+    val = "<B>Power : </B> "+ device.currentValue("power").toString() + " W</BR><B>Amperage : </B> " + device.currentValue("amperage").toString() + " A</BR><B>Energy : </B> " + device.currentValue("energy").toString() + " KWh</BR><B>Voltage : </B> " + device.currentValue("voltage").toString() + " V" 
+    if( device.currentValue( "htmlTile" ).toString() != val ){
+       sendEvent( name: "htmlTile", value: val )
+    }
 }
