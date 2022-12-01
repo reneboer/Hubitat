@@ -1,8 +1,8 @@
 /**
  *  Qubino DIN Dimmer no Temp
  *	Device Handler 
- *	Version 1.06
- *  Date: 14.9.2022
+ *	Version 1.1
+ *  Date: 1.12.2022
  *	Author: Kristjan Jam&scaron;ek (Kjamsek), Goap d.o.o.
  *  Post V1.0 updates: Rene Boer
  *  Copyright 2017 Kristjan Jam&scaron;ek
@@ -28,8 +28,6 @@
  *
  *
  *	TO-DO:
- *	- Implement Multichannel Association Command Class to add MC Association functionality and support configurable inputs.
- *  - Implement secure mode
  *
  *	CHANGELOG:
  *	0.99: Final release code cleanup and commenting
@@ -40,6 +38,9 @@
  *  1.04: Removed ST specifics (tiles, simulation)
  *  1.05: Added default for preferences, removed debug messages when debug is off.
  *  1.06: Added power refresh after switch off.
+ *  1.07: Added ChangeLevel support
+ *  1.08: Changed on/off commands. Rewrite of some functions.
+ *  1.1 : Added sure support. However, do not! include with S0 security as DIN dimmer will drop from network.
  */
 metadata {
 	definition (name: "Qubino DIN Dimmer no Temp", namespace: "Goap", author: "Kristjan Jam&scaron;ek") {
@@ -48,6 +49,7 @@ metadata {
 		capability "Switch Level"
 		capability "Power Meter"
         capability "EnergyMeter"
+		capability "ChangeLevel"
 		
 		capability "Relay Switch"	// - Tagging capability
 		capability "Light"			// - Tagging capability
@@ -64,6 +66,7 @@ metadata {
 		command "resetPower" //command to issue Meter Reset commands to reset accumulated pwoer measurements
 		
         fingerprint mfr:"0159", prod:"0001", model:"0052"  //Manufacturer Information value for Qubino DIN Dimmer
+		fingerprint mfr:"0159", prod:"0001", deviceId:"0052", inClusters:"0x5E,0x86,0x5A,0x72,0x73,0x27,0x25,0x26,0x32,0x71,0x85,0x8E,0x59,0x70", outClusters:"0x26", deviceJoinName: "Qubino DIN Dimmer"
 	}
 
 
@@ -189,7 +192,7 @@ metadata {
  * @return stringList - a list of Integer type node id values.
 */
 def convertStringListToIntegerList(stringList){
-	if (logEnable) log.debug stringList
+	logDebug stringList
 	if(stringList != null){
 		for(int i=0;i<stringList.size();i++){
 			stringList[i] = stringList[i].toInteger()
@@ -207,13 +210,12 @@ def convertStringListToIntegerList(stringList){
  * @return List of commands that will be executed in sequence with 500 ms delay inbetween.
 */
 def configure() {
-	if (logEnable) log.debug "Qubino DIN Dimmer: configure()"
-	def cmds = []
-	cmds << zwave.associationV1.associationRemove(groupingIdentifier:1).format()
-	cmds << zwave.associationV1.associationSet(groupingIdentifier:1, nodeId:zwaveHubNodeId).format()
-	cmds << zwave.multiChannelV3.multiChannelEndPointGet().format()
-	return response(delayBetween(cmds, 1000))
-	
+	logDebug "configure()"
+	sendToDevice([ 
+        zwave.associationV2.associationRemove(groupingIdentifier:1),
+	    zwave.associationV2.associationSet(groupingIdentifier:1, nodeId:zwaveHubNodeId),
+	    zwave.multiChannelV3.multiChannelEndPointGet()
+    ], 1000)
 }
 
 /**
@@ -224,10 +226,8 @@ def configure() {
  * @return void.
 */
 def on() {
-        delayBetween([
-				zwave.switchMultilevelV3.switchMultilevelSet(value: 0xFF, dimmingDuration: 0x00).format(),
-				zwave.switchMultilevelV1.switchMultilevelGet().format()
-        ], 500)  
+    logDebug "on()"
+	sendToDevice(zwave.basicV1.basicSet(value: 0xFF))
 }
 /**
  * Switch capability command handler for OFF state. It issues a Switch Multilevel Set command with value 0x00 and instantaneous dimming duration.
@@ -237,11 +237,8 @@ def on() {
  * @return void.
 */
 def off() {
-        delayBetween([
-				zwave.switchMultilevelV3.switchMultilevelSet(value: 0x00, dimmingDuration: 0x00).format(),
-				zwave.switchMultilevelV1.switchMultilevelGet().format(),
-        		zwave.meterV2.meterGet(scale: 2).format()
-        ], 500)
+    logDebug "off()"
+	sendToDevice(zwave.basicV1.basicSet(value: 0x00))
 }
 /**
  * Switch Level capability command handler for a positive dimming state. It issues a Switch Multilevel Set command with value contained in the parameter value and instantaneous dimming duration.
@@ -251,40 +248,52 @@ def off() {
  * @return void.
 */
 def setLevel(level) {
-//	if(level > 99) level = 99
-	Integer newValue = Math.max(Math.min(level, 99),0)
-    delayBetween([
-		zwave.switchMultilevelV3.switchMultilevelSet(value: newValue, dimmingDuration: 0x00).format(),
-		zwave.switchMultilevelV1.switchMultilevelGet().format()
-    ], 500)
+	if(level > 99) level = 99
+    logDebug "setLevel(${level})"
+	sendToDevice(zwave.switchMultilevelV3.switchMultilevelSet(value: level, dimmingDuration: 0x00))
+}
+def setLevel(level, duration) {
+	if(level > 99) level = 99
+    logDebug "setLevel(${level}, ${duration})"
+    sendToDevice(zwave.switchMultilevelV3.switchMultilevelSet(value: level, dimmingDuration: duration))
+}
+
+def startLevelChange(direction) {
+	boolean upDownVal = direction == "down" ? true : false
+	logDebug "startLevelChange(${direction})"
+	sendToDevice(zwave.switchMultilevelV4.switchMultilevelStartLevelChange(ignoreStartLevel: true, startLevel: device.currentValue("level"), upDown: upDownVal, dimmingDuration: settings."param66"!=null? settings."param66":3))
+}
+
+def stopLevelChange() {
+	logDebug "stopLevelChange()"
+	sendToDevice(zwave.switchMultilevelV4.switchMultilevelStopLevelChange())
 }
 
 /**
  * Refresh Power Consumption command handler for updating the cumulative consumption fields in kWh. It will issue a Meter Get command with scale parameter set to kWh.
  *		
  * @param void.
- * @return void.
+ * @return List of meterGet commands that will be executed in sequence with 500 ms delay inbetween.
 */
 def refreshPowerConsumption() {
-	if (logEnable) log.debug "Qubino DIN Dimmer: refreshPowerConsumption()"
-	delayBetween([
-		zwave.meterV2.meterGet(scale: 0).format(),
-		zwave.meterV2.meterGet(scale: 2).format()
-    ], 500)
+	logDebug "refreshPowerConsumption()"
+	sendToDevice([
+		zwave.meterV2.meterGet(scale: 0),
+		zwave.meterV2.meterGet(scale: 2)
+    ])
 }
 /**
  * Reset Power Consumption command handler for resetting the cumulative consumption fields in kWh. It will issue a Meter Reset command followed by Meter Get commands for active and accumulated power.
  *		
  * @param void.
- * @return void.
+ * @return List of meterGet commands that will be executed in sequence with 500 ms delay inbetween.
 */
 def resetPower() {
-	if (logEnable) log.debug "Qubino DIN Dimmer: resetPower()"
-	zwave.meterV2.meterReset()
-	delayBetween([
+	logDebug "resetPower()"
+	sendToDevice([
 		zwave.meterV2.meterReset(),
-		zwave.meterV2.meterGet(scale: 0).format(),
-		zwave.meterV2.meterGet(scale: 2).format()
+		zwave.meterV2.meterGet(scale: 0),
+		zwave.meterV2.meterGet(scale: 2)
     ], 500)
 }
 
@@ -297,54 +306,26 @@ def resetPower() {
 */
 
 def setAssociation() {
-	if (logEnable) log.debug "Qubino DIN Dimmer: setAssociation()"
+	logDebug "setAssociation()"
 	def assocSet = []
-	if(settings.assocGroup2 != null){
-		def group2parsed = settings.assocGroup2.tokenize(",")
-		if(group2parsed == null){
-			assocSet << zwave.associationV1.associationSet(groupingIdentifier:2, nodeId:assocGroup2).format()
+    def associationGroups = 5
+    for (int i = 2; i <= associationGroups; i++){
+		if(settings."assocGroup${i}" != null){
+			logDebug "associationSet(groupingIdentifier:${i})"
+			def groupparsed = settings."assocGroup${i}".tokenize(",")
+			if(groupparsed == null){
+				assocSet << zwave.associationV2.associationSet(groupingIdentifier:i, nodeId:settings."assocGroup${i}")
+			}else{
+				groupparsed = convertStringListToIntegerList(groupparsed)
+				assocSet << zwave.associationV2.associationSet(groupingIdentifier:i, nodeId:groupparsed)
+			}
 		}else{
-			group2parsed = convertStringListToIntegerList(group2parsed)
-			assocSet << zwave.associationV1.associationSet(groupingIdentifier:2, nodeId:group2parsed).format()
+			logDebug "associationRemove(groupingIdentifier:${i})"
+			assocSet << zwave.associationV2.associationRemove(groupingIdentifier:i)
 		}
-	}else{
-		assocSet << zwave.associationV2.associationRemove(groupingIdentifier:2).format()
-	}
-	if(settings.assocGroup3 != null){
-		def group3parsed = settings.assocGroup3.tokenize(",")
-		if(group3parsed == null){
-			assocSet << zwave.associationV1.associationSet(groupingIdentifier:3, nodeId:assocGroup3).format()
-		}else{
-			group3parsed = convertStringListToIntegerList(group3parsed)
-			assocSet << zwave.associationV1.associationSet(groupingIdentifier:3, nodeId:group3parsed).format()
-		}
-	}else{
-		assocSet << zwave.associationV2.associationRemove(groupingIdentifier:3).format()
-	}
-	if(settings.assocGroup4 != null){
-		def group4parsed = settings.assocGroup4.tokenize(",")
-		if(group4parsed == null){
-			assocSet << zwave.associationV1.associationSet(groupingIdentifier:4, nodeId:assocGroup4).format()
-		}else{
-			group4parsed = convertStringListToIntegerList(group4parsed)
-			assocSet << zwave.associationV1.associationSet(groupingIdentifier:4, nodeId:group4parsed).format()
-		}
-	}else{
-		assocSet << zwave.associationV2.associationRemove(groupingIdentifier:4).format()
-	}
-	if(settings.assocGroup5 != null){
-		def group5parsed = settings.assocGroup5.tokenize(",")
-		if(group5parsed == null){
-			assocSet << zwave.associationV1.associationSet(groupingIdentifier:5, nodeId:assocGroup5).format()
-		}else{
-			group5parsed = convertStringListToIntegerList(group5parsed)
-			assocSet << zwave.associationV1.associationSet(groupingIdentifier:5, nodeId:group5parsed).format()
-		}
-	}else{
-		assocSet << zwave.associationV2.associationRemove(groupingIdentifier:5).format()
 	}
 	if(assocSet.size() > 0){
-		return delayBetween(assocSet, 500)
+		return sendToDevice(assocSet)
 	}
 }
 
@@ -358,61 +339,61 @@ def setAssociation() {
 */
 
 def setConfiguration() {
-	if (logEnable) log.debug "Qubino DIN Dimmer: setConfiguration()"
+	logDebug "setConfiguration()"
 	def configSequence = []
 	if(settings.param1 != null){
-		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 1, size: 1, scaledConfigurationValue: settings.param1.toInteger()).format()
+		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 1, size: 1, scaledConfigurationValue: settings.param1.toInteger())
 	}
 	if(settings.param5 != null){
-		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 5, size: 1, scaledConfigurationValue: settings.param5.toInteger()).format()
+		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 5, size: 1, scaledConfigurationValue: settings.param5.toInteger())
 	}
 	if(settings.param10 != null){
-		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 10, size: 2, scaledConfigurationValue: settings.param10.toInteger()).format()
+		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 10, size: 2, scaledConfigurationValue: settings.param10.toInteger())
 	}
 	if(settings.param11 != null){
-		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 11, size: 2, scaledConfigurationValue: settings.param11.toInteger()).format()
+		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 11, size: 2, scaledConfigurationValue: settings.param11.toInteger())
 	}
 	if(settings.param12 != null){
-		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 12, size: 2, scaledConfigurationValue: settings.param12.toInteger()).format()
+		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 12, size: 2, scaledConfigurationValue: settings.param12.toInteger())
 	}
 	if(settings.param21 != null){
-		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 21, size: 1, scaledConfigurationValue: settings.param21.toInteger()).format()
+		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 21, size: 1, scaledConfigurationValue: settings.param21.toInteger())
 	}
 	if(settings.param30 != null){
-		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 30, size: 1, scaledConfigurationValue: settings.param30.toInteger()).format()
+		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 30, size: 1, scaledConfigurationValue: settings.param30.toInteger())
 	}
 	if(settings.param40 != null){
-		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 40, size: 1, scaledConfigurationValue: settings.param40.toInteger()).format()
+		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 40, size: 1, scaledConfigurationValue: settings.param40.toInteger())
 	}
 	if(settings.param42 != null){
-		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 42, size: 2, scaledConfigurationValue: settings.param42.toInteger()).format()
+		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 42, size: 2, scaledConfigurationValue: settings.param42.toInteger())
 	}
 	if(settings.param60 != null){
-		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 60, size: 1, scaledConfigurationValue: settings.param60.toInteger()).format()
+		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 60, size: 1, scaledConfigurationValue: settings.param60.toInteger())
 	}
 	if(settings.param61 != null){
-		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 61, size: 1, scaledConfigurationValue: settings.param61.toInteger()).format()
+		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 61, size: 1, scaledConfigurationValue: settings.param61.toInteger())
 	}
 	if(settings.param65 != null){
-		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 65, size: 2, scaledConfigurationValue: settings.param65.toInteger()).format()
+		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 65, size: 2, scaledConfigurationValue: settings.param65.toInteger())
 	}
 	if(settings.param66 != null){
-		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 66, size: 2, scaledConfigurationValue: settings.param66.toInteger()).format()
+		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 66, size: 2, scaledConfigurationValue: settings.param66.toInteger())
 	}
 	if(settings.param67 != null){
-		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 67, size: 1, scaledConfigurationValue: settings.param67.toInteger()).format()
+		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 67, size: 1, scaledConfigurationValue: settings.param67.toInteger())
 	}
 	if(settings.param68 != null){
-		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 68, size: 1, scaledConfigurationValue: settings.param68.toInteger()).format()
+		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 68, size: 1, scaledConfigurationValue: settings.param68.toInteger())
 	}
 	if(settings.param110 != null){
-		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 110, size: 2, scaledConfigurationValue: settings.param110.toInteger()).format()
+		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 110, size: 2, scaledConfigurationValue: settings.param110.toInteger())
 	}	
 	if(settings.param120 != null){
-		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 120, size: 1, scaledConfigurationValue: settings.param120.toInteger()).format()
+		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 120, size: 1, scaledConfigurationValue: settings.param120.toInteger())
 	}	
 	if(configSequence.size() > 0){
-		return delayBetween(configSequence, 500)
+		return sendToDevice(configSequence, 500)
 	}
 }
 
@@ -426,14 +407,14 @@ def setConfiguration() {
  * @return Parsed result of the received bytes.
 */
 def parse(String description) {
-	if (logEnable) log.debug "Qubino DIN Dimmer: Parsing '${description}'"
+	logDebug "Parsing '${description}'"
 	def result = null
     def cmd = zwave.parse(description)
     if (cmd) {
 		result = zwaveEvent(cmd)
-        if (logEnable) log.debug "Parsed ${cmd} to ${result.inspect()}"
+        logDebug "Parsed ${cmd} to ${result.inspect()}"
     } else {
-		if (logEnable) log.debug "Non-parsed event: ${description}"
+		logDebug "Non-parsed event: ${description}"
     }
     return result
 }
@@ -442,7 +423,7 @@ def parse(String description) {
 */
 def zwaveEvent(hubitat.zwave.Command cmd, ep = null) {
 	com.hubitat.app.DeviceWrapper targetDevice = getTargetDeviceByEndPoint(ep)
-    if (logEnable) log.info "Device ${targetDevice.displayName}: Received Z-Wave Message ${cmd} that is not handled by this driver. Endpoint: ${ep}. Message class: ${cmd.class}."
+    logDebug "Device ${targetDevice.displayName}: Received Z-Wave Message ${cmd} that is not handled by this driver. Endpoint: ${ep}. Message class: ${cmd.class}."
 }
 /**
  * Event handler for received Sensor Multilevel Report frames. These are for the temperature sensor connected to TS connector.
@@ -451,7 +432,7 @@ def zwaveEvent(hubitat.zwave.Command cmd, ep = null) {
  * @return Event that updates the temperature values with received values.
 */
 //def zwaveEvent(hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelReport cmd){
-//	log.debug "Qubino DIN Dimmer: SensorMultilevelReport handler fired"
+//	logDebug "SensorMultilevelReport handler fired"
 //	def resultEvents = []
 //	resultEvents << createEvent(name:"temperature", value: convertDegrees(location.temperatureScale,cmd), unit:"°"+location.temperatureScale, descriptionText: "Temperature: "+convertDegrees(location.temperatureScale,cmd)+"°"+location.temperatureScale)
 //	return resultEvents
@@ -464,7 +445,7 @@ def zwaveEvent(hubitat.zwave.Command cmd, ep = null) {
  * @return List of events to update the ON / OFF and analogue control elements with received values.
 */
 def zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport cmd){
-	if (logEnable) log.debug "Qubino DIN Dimmer: firing switch multilevel event"
+	logDebug "firing switch multilevel event ($cmd)"
 	def result = []
 	result << createEvent(name:"switch", value: cmd.value ? "on" : "off")
 	result << createEvent(name:"level", value: cmd.value, unit:"%", descriptionText:"${device.displayName} dimmed to ${cmd.value==255 ? 100 : cmd.value}%")
@@ -477,15 +458,15 @@ def zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport 
  * @return Power consumption event for W data or kwhConsumption event for kWh data.
 */
 def zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd) {
-	if (logEnable) log.debug "Qubino DIN Dimmer: firing meter report event"
+	logDebug "firing meter report event"
 	def result = []
 	switch(cmd.scale){
 		case 0:
-            if (logEnable) log.debug("energy report is ${cmd.scaledMeterValue} kWh")
+            logDebug ("energy report is ${cmd.scaledMeterValue} kWh")
 			result << createEvent(name:"energy", value: cmd.scaledMeterValue, unit:"kWh", descriptionText:"${device.displayName} consumed ${cmd.scaledMeterValue} kWh")
             break;
 		case 2:
-            if (logEnable) log.debug("power report is ${cmd.scaledMeterValue} W")
+            logDebug ("power report is ${cmd.scaledMeterValue} W")
 			result << createEvent(name:"power", value: cmd.scaledMeterValue, unit:"W", descriptionText:"${device.displayName} consumes ${cmd.scaledMeterValue} W")
 			break;
         default:
@@ -501,7 +482,7 @@ def zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd) {
  * @return Switch Event with on or off value.
 */
 def zwaveEvent(hubitat.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd) {
-	if (logEnable) log.debug "Qubino DIN Dimmer: firing switch binary report event"
+	logDebug "firing switch binary report event"
     createEvent(name:"switch", value: cmd.value ? "on" : "off")
 }
 /**
@@ -511,8 +492,7 @@ def zwaveEvent(hubitat.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd) {
  * @return void.
 */
 def zwaveEvent(hubitat.zwave.commands.configurationv2.ConfigurationReport cmd){
-	if (logEnable) log.debug "Qubino DIN Dimmer: firing configuration report event"
-	if (logEnable) log.debug cmd.configurationValue
+	logDebug "firing configuration report event ($cmd.configurationValue)"
 }
 /**
  * Event handler for received Basic Report frames.
@@ -521,8 +501,7 @@ def zwaveEvent(hubitat.zwave.commands.configurationv2.ConfigurationReport cmd){
  * @return void
 */
 def zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd){
-	if (logEnable) log.debug "Qubino DIN Dimmer: firing basic report event"
-	if (logEnable) log.debug cmd
+	logDebug "firing basic report event ($cmd)"
 }
 /**
  * Event handler for received MultiChannelEndPointReport commands. Used to distinguish when the device is in singlechannel or multichannel configuration. 
@@ -531,7 +510,7 @@ def zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd){
  * @return commands to set up a MC Lifeline association.
 */
 def zwaveEvent(hubitat.zwave.commands.multichannelv3.MultiChannelEndPointReport cmd){
-	if (logEnable) log.debug "Qubino DIN Dimmer: firing MultiChannelEndPointReport"
+	logDebug "firing MultiChannelEndPointReport"
 	if(cmd.endPoints > 0){
 		state.isMcDevice = true;
 		createChildDevices();
@@ -548,7 +527,7 @@ def zwaveEvent(hubitat.zwave.commands.multichannelv3.MultiChannelEndPointReport 
  * @return parsed event.
 */
 def zwaveEvent(hubitat.zwave.commands.multichannelv3.MultiChannelCmdEncap cmd){
-	if (logEnable) log.debug "Qubino DIN Dimmer: firing MC Encapsulation event"
+	logDebug "firing MC Encapsulation event"
 	def encapsulatedCommand = cmd.encapsulatedCommand()
 	if (encapsulatedCommand) {
 			return zwaveEvent(encapsulatedCommand, cmd)
@@ -561,7 +540,7 @@ def zwaveEvent(hubitat.zwave.commands.multichannelv3.MultiChannelCmdEncap cmd){
  * @return List of events to update the temperature control elements with received values.
 */
 def zwaveEvent(hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelReport cmd, hubitat.zwave.commands.multichannelv3.MultiChannelCmdEncap command){
-	if (logEnable) log.debug "Qubino DIN Dimmer: firing MC sensor multilevel event"
+	logDebug "firing MC sensor multilevel event"
 	def result = []
 //	result << createEvent(name:"temperature", value: convertDegrees(location.temperatureScale,cmd), unit:"°"+location.temperatureScale, descriptionText: "Temperature: "+convertDegrees(location.temperatureScale,cmd)+"°"+location.temperatureScale, isStateChange: true)
 //	return result
@@ -574,11 +553,7 @@ def zwaveEvent(hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelReport 
  * @return List of events to update the ON / OFF and analogue control elements with received values.
 */
 def zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport cmd, hubitat.zwave.commands.multichannelv3.MultiChannelCmdEncap command){
-    if (logEnable) {
-       log.debug "Qubino DIN Dimmer: firing MC switch multilevel event"
-	   log.debug cmd
-	   log.debug command
-    }    
+    logDebug "firing MC switch multilevel event ($cmd), ($command)"
 	def result = []
 	result << createEvent(name:"switch", value: cmd.value ? "on" : "off")
 	result << createEvent(name:"level", value: cmd.value, unit:"%", descriptionText:"${device.displayName} dimmed to ${cmd.value==255 ? 100 : cmd.value}%")
@@ -591,11 +566,7 @@ def zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport 
  * @return List of events to update power control elements with received values.
 */
 def zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd, hubitat.zwave.commands.multichannelv3.MultiChannelCmdEncap command){
-    if (logEnable) {
-        log.debug "Qubino DIN Dimmer: firing MC Meter Report event"
-	    log.debug command
-	    log.debug cmd
-    }
+    logDebug "firing MC Meter Report event ($cmd), ($command)"
 	def result = []
 	switch(cmd.scale){
 		case 0:
@@ -614,12 +585,35 @@ def zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd, hubitat.zwave.com
  * @return parsed event.
 */
 def zwaveEvent(hubitat.zwave.commands.switchmultilevelv4.SwitchMultilevelSet cmd){
-    if (logEnable) {
-        log.debug "Qubino DIN Dimmer: firing Dimming Duration event"
-	    log.debug cmd
-    }
+    logDebug "firing Dimming Duration event ($cmd)"
+
 //	def encapsulatedCommand = cmd.encapsulatedCommand()
 //	if (encapsulatedCommand) {
 //			return zwaveEvent(encapsulatedCommand, cmd)
 //	}
+}
+
+/*
+ * Send zwave commands to device. Need to see why secure does not work.
+*/
+def sendToDevice(hubitat.zwave.Command cmd) {
+    if (getDataValue("zwaveSecurePairingComplete") == "true") {
+		logDebug "sendToDevice secured ($cmd)"
+        zwave.securityV1.securityMessageEncapsulation().encapsulate(cmd).format()
+    } else {
+		logDebug "sendToDevice($cmd)"
+        cmd.format()
+    }
+}
+
+}
+
+def sendToDevice(List<hubitat.zwave.Command> commands, delay=200) {
+	logDebug "sendToDevice($commands)"
+	delayBetween(commands.collect{ sendToDevice(it) }, delay)
+}
+
+// Write to log if enabled
+private logDebug(msg) {
+    if (logEnable) log.debug "Qubino DIN Dimmer: $msg"
 }
