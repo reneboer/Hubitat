@@ -1,13 +1,13 @@
 /**
  *  Qubino Smart Plug 16A ZMNHYDx
  *	Device Handler 
- *	Version 0.05
- *  Date: 17.10.2022
+ *	Version 0.1
+ *  Date: 1.12.2022
  *	Author: Rene Boer
  *  Copyright , none free to use
  *
  * |---------------------------- DEVICE HANDLER FOR QUBINO SMART PLUG 16A Z-WAVE DEVICE -------------------------------------------------------|  
- *	The handler supports all unsecure functions of the Qubino Smart Plug 16A device, except configurable inputs. Configuration parameters and
+ *	The handler supports all unsecure functions of the Qubino Smart Plug 16A device. Configuration parameters and
  *	association groups can be set in the device's preferences screen, but they are applied on the device only after
  *	pressing the 'Set configuration' and 'Set associations' buttons on the bottom of the details view. 
  *
@@ -17,7 +17,6 @@
  *
  *
  *	TO-DO:
- *  - Implement secure mode
  *
  *	CHANGELOG:
  *	0.01: First release
@@ -25,6 +24,8 @@
  *  0.03: Added power & amperage refresh after switch off.
  *  0.04: Added html formatted attribute to display W, V, A and KWh in one tile
  *  0.05: Fixed refreshPowerConsumption. Only updating tile on power value change to reduce events.
+ *  0.06: Added finger print and associations.
+ *  0.1 : Added secure mode support. Some rewrites.
  */
 metadata {
 	definition (name: "Qubino Smart Plug 16A", namespace: "Goap", author: "Rene Boer") {
@@ -44,8 +45,8 @@ metadata {
 		command "refreshPowerConsumption" //command to issue Meter Get requests for KWH measurements from the device, W are already shown as part of Pwer MEter capability
 		command "resetPower" //command to issue Meter Reset commands to reset accumulated pwoer measurements
 		
-//		fingerprint  mfr:"0159", prod:"0002", model:"0054", inClusters:"0x5E,0x25,0x85,0x59,0x55,0x86,0x72,0x5A,0x70,0x32,0x71,0x73,0x9F,0x6C,0x7A"
-		fingerprint  mfr:"0159", prod:"0002", model:"0054"
+		fingerprint mfr:"0159", prod:"0002", model:"0054"
+		fingerprint mfr:"0159", prod:"0002", deviceId:"0054", inClusters:"0x5E,0x25,0x85,0x59,0x55,0x86,0x72,0x5A,0x70,0x32,0x71,0x73,0x9F,0x6C,0x7A"
 	}
 
 	preferences {
@@ -175,44 +176,41 @@ def convertStringListToIntegerList(stringList){
  * @return List of commands that will be executed in sequence with 500 ms delay inbetween.
 */
 def configure() {
-	if (logEnable) log.debug "Qubino Smart Plug 16A: configure()"
-	def cmds = []
-	cmds << zwave.associationV1.associationRemove(groupingIdentifier:1).format()
-	cmds << zwave.associationV1.associationSet(groupingIdentifier:1, nodeId:zwaveHubNodeId).format()
-	cmds << zwave.multiChannelV3.multiChannelEndPointGet().format()
-	return response(delayBetween(cmds, 1000))
-	
+	logDebug "configure()"
+	sendToDevice([
+		zwave.associationV1.associationRemove(groupingIdentifier:1),
+		zwave.associationV1.associationSet(groupingIdentifier:1, nodeId:zwaveHubNodeId),
+		zwave.multiChannelV3.multiChannelEndPointGet()
+	], 1000)
 }
 
 /**
- * Switch capability command handler for ON state. It issues a Switch Multilevel Set command with value 0xFF and instantaneous dimming duration.
- * This command is followed by a Switch Multilevel Get command, that updates the actual state of the dimmer.
+ * Switch capability command handler for ON state. 
+ * This command is followed by a Switch Binary Get command, that updates the actual state of the switch.
  *		
  * @param void
  * @return void.
 */
 def on() {
-	if (logEnable) log.debug "Qubino Smart Plug 16A: on()"
-	delayBetween([
-		zwave.basicV1.basicSet(value: 0xFF).format(),
-		zwave.switchBinaryV1.switchBinaryGet().format()
-    ], 500)  
+	logDebug "on()"
+	sendToDevice([
+		zwave.basicV1.basicSet(value: 0xFF),
+		zwave.switchBinaryV1.switchBinaryGet()
+    ])  
 }
 /**
- * Switch capability command handler for OFF state. It issues a Switch Multilevel Set command with value 0x00 and instantaneous dimming duration.
- * This command is followed by a Switch Multilevel Get command, that updates the actual state of the dimmer.
+ * Switch capability command handler for OFF state. 
+ * This command is followed by a Switch Binary Get command, that updates the actual state of the switch.
  *		
  * @param void
  * @return void.
 */
 def off() {
-	if (logEnable) log.debug "Qubino Smart Plug 16A: off()"
-    delayBetween([
-		zwave.basicV1.basicSet(value: 0x00).format(),
-		zwave.switchBinaryV1.switchBinaryGet().format(),
-		zwave.meterV2.meterGet(scale: 2).format(),
-		zwave.meterV2.meterGet(scale: 5).format()
-    ], 500)
+	logDebug "off()"
+    sendToDevice([
+		zwave.basicV1.basicSet(value: 0x00),
+		zwave.switchBinaryV1.switchBinaryGet()
+    ])
 }
 
 /**
@@ -222,13 +220,13 @@ def off() {
  * @return void.
 */
 def refreshPowerConsumption() {
-	if (logEnable) log.debug "Qubino Smart Plug 16A: refreshPowerConsumption()"
-	delayBetween([
-		zwave.meterV4.meterGet(scale: 0).format(),
-		zwave.meterV4.meterGet(scale: 2).format(),
-		zwave.meterV4.meterGet(scale: 4).format(),
-		zwave.meterV4.meterGet(scale: 5).format()
-    ], 500)
+	logDebug "refreshPowerConsumption()"
+	sendToDevice([
+		zwave.meterV4.meterGet(scale: 0),
+		zwave.meterV4.meterGet(scale: 4),
+		zwave.meterV4.meterGet(scale: 5),
+		zwave.meterV4.meterGet(scale: 2)
+    ])
 }
 /**
  * Reset Power Consumption command handler for resetting the cumulative consumption fields in kWh. It will issue a Meter Reset command followed by Meter Get commands for active and accumulated power.
@@ -237,15 +235,14 @@ def refreshPowerConsumption() {
  * @return void.
 */
 def resetPower() {
-	if (logEnable) log.debug "Qubino Smart Plug 16A: resetPower()"
-	zwave.meterV2.meterReset()
-	delayBetween([
-		zwave.meterV2.meterReset().format(),
-		zwave.meterV4.meterGet(scale: 0).format(),
-		zwave.meterV4.meterGet(scale: 2).format(),
-		zwave.meterV4.meterGet(scale: 4).format(),
-		zwave.meterV4.meterGet(scale: 5).format()
-    ], 500)
+	logDebug "resetPower()"
+	sendToDevice([
+		zwave.meterV2.meterReset(),
+		zwave.meterV4.meterGet(scale: 0),
+		zwave.meterV4.meterGet(scale: 4),
+		zwave.meterV4.meterGet(scale: 5),
+		zwave.meterV4.meterGet(scale: 2)
+    ])
 }
 
 /**
@@ -257,32 +254,26 @@ def resetPower() {
 */
 
 def setAssociation() {
-	if (logEnable) log.debug "Qubino Smart Plug 16A: setAssociation()"
+	logDebug "setAssociation()"
 	def assocSet = []
-	if(settings.assocGroup2 != null){
-		def group2parsed = settings.assocGroup2.tokenize(",")
-		if(group2parsed == null){
-			assocSet << zwave.associationV1.associationSet(groupingIdentifier:2, nodeId:assocGroup2).format()
+    def associationGroups = 3
+    for (int i = 2; i <= associationGroups; i++){
+		if(settings."assocGroup${i}" != null){
+			logDebug "associationSet(groupingIdentifier:${i})"
+			def groupparsed = settings."assocGroup${i}".tokenize(",")
+			if(groupparsed == null){
+				assocSet << zwave.associationV2.associationSet(groupingIdentifier:i, nodeId:settings."assocGroup${i}").format()
+			}else{
+				groupparsed = convertStringListToIntegerList(groupparsed)
+				assocSet << zwave.associationV2.associationSet(groupingIdentifier:i, nodeId:groupparsed).format()
+			}
 		}else{
-			group2parsed = convertStringListToIntegerList(group2parsed)
-			assocSet << zwave.associationV1.associationSet(groupingIdentifier:2, nodeId:group2parsed).format()
+			logDebug "associationRemove(groupingIdentifier:${i})"
+			assocSet << zwave.associationV2.associationRemove(groupingIdentifier:i).format()
 		}
-	}else{
-		assocSet << zwave.associationV2.associationRemove(groupingIdentifier:2).format()
-	}
-	if(settings.assocGroup3 != null){
-		def group3parsed = settings.assocGroup3.tokenize(",")
-		if(group3parsed == null){
-			assocSet << zwave.associationV1.associationSet(groupingIdentifier:3, nodeId:assocGroup3).format()
-		}else{
-			group3parsed = convertStringListToIntegerList(group3parsed)
-			assocSet << zwave.associationV1.associationSet(groupingIdentifier:3, nodeId:group3parsed).format()
-		}
-	}else{
-		assocSet << zwave.associationV2.associationRemove(groupingIdentifier:3).format()
 	}
 	if(assocSet.size() > 0){
-		return delayBetween(assocSet, 500)
+		return sendToDevice(assocSet)
 	}
 }
 
@@ -296,7 +287,7 @@ def setAssociation() {
 */
 
 def setConfiguration() {
-	if (logEnable) log.debug "Qubino Smart Plug 16A: setConfiguration()"
+	logDebug "setConfiguration()"
 	def configSequence = []
 	if(settings.param11 != null){
 		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 11, size: 2, scaledConfigurationValue: settings.param11.toInteger()).format()
@@ -338,7 +329,7 @@ def setConfiguration() {
 		configSequence << zwave.configurationV1.configurationSet(parameterNumber: 74, size: 1, scaledConfigurationValue: settings.param74.toInteger()).format()
 	}	
 	if(configSequence.size() > 0){
-		return delayBetween(configSequence, 500)
+		return sendToDevice(configSequence)
 	}
 }
 
@@ -352,14 +343,14 @@ def setConfiguration() {
  * @return Parsed result of the received bytes.
 */
 def parse(String description) {
-	if (logEnable) log.debug "Qubino Smart Plug 16A: Parsing '${description}'"
+	logDebug "Parsing '${description}'"
 	def result = null
     def cmd = zwave.parse(description)
     if (cmd) {
 		result = zwaveEvent(cmd)
-        if (logEnable) log.debug "Parsed ${cmd} to ${result.inspect()}"
+        logDebug "Parsed ${cmd} to ${result.inspect()}"
     } else {
-		if (logEnable) log.debug "Non-parsed event: ${description}"
+		logDebug "Non-parsed event: ${description}"
     }
     return result
 }
@@ -368,7 +359,7 @@ def parse(String description) {
 */
 def zwaveEvent(hubitat.zwave.Command cmd, ep = null) {
 	com.hubitat.app.DeviceWrapper targetDevice = getTargetDeviceByEndPoint(ep)
-    if (logEnable) log.info "Device ${targetDevice.displayName}: Received Z-Wave Message ${cmd} that is not handled by this driver. Endpoint: ${ep}. Message class: ${cmd.class}."
+    log.trace "Device ${targetDevice.displayName}: Received Z-Wave Message ${cmd} that is not handled by this driver. Endpoint: ${ep}. Message class: ${cmd.class}."
 }
 /**
  * Event handler for received Switch Multilevel Report frames.
@@ -377,7 +368,7 @@ def zwaveEvent(hubitat.zwave.Command cmd, ep = null) {
  * @return List of events to update the ON / OFF and analogue control elements with received values.
 */
 def zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport cmd){
-	if (logEnable) log.debug "Qubino Smart Plug 16A: firing switch multilevel event"
+	logDebug "firing switch multilevel event ($cmd)"
 	def result = []
 	result << createEvent(name:"switch", value: cmd.value ? "on" : "off")
 	result << createEvent(name:"level", value: cmd.value, unit:"%", descriptionText:"${device.displayName} dimmed to ${cmd.value==255 ? 100 : cmd.value}%")
@@ -390,43 +381,8 @@ def zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport 
  * @return Power consumption event for W data or kwhConsumption event for kWh data.
 */
 def zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd) {
-	if (logEnable) log.debug "Qubino Smart Plug 16A: firing meter report event"
-	def result = []
-	if (cmd.meterType == 1) {
-		switch(cmd.scale){
-			case 0:
-				if (logEnable) log.debug("energy report is ${cmd.scaledMeterValue} kWh")
-				result << createEvent(name:"energy", value: cmd.scaledMeterValue, unit:"kWh", descriptionText:"${device.displayName} consumed ${cmd.scaledMeterValue} kWh")
-				break;
-			case 1:
-				if (logEnable) log.debug("energy report is ${cmd.scaledMeterValue} kVah")
-				result << createEvent(name:"energy", value: cmd.scaledMeterValue, unit:"kVah", descriptionText:"${device.displayName} consumed ${cmd.scaledMeterValue} kVah")
-				break;
-			case 2:
-				if (logEnable) log.debug("power report is ${cmd.scaledMeterValue} W")
-				result << createEvent(name:"power", value: cmd.scaledMeterValue, unit:"W", descriptionText:"${device.displayName} consumes ${cmd.scaledMeterValue} W")
-                UpdateTile() 
-				break;
-			case 3:
-				if (logEnable) log.debug("frequency report is ${cmd.scaledMeterValue} Hz")
-				result << createEvent(name:"frequency", value: cmd.scaledMeterValue, unit:"Hz", descriptionText:"${device.displayName} level ${cmd.scaledMeterValue} Hz")
-				break;
-			case 4:
-				if (logEnable) log.debug("voltage report is ${cmd.scaledMeterValue} V")
-				result << createEvent(name:"voltage", value: cmd.scaledMeterValue, unit:"V", descriptionText:"${device.displayName} level ${cmd.scaledMeterValue} V")
-				break;
-			case 5:
-				if (logEnable) log.debug("amperage report is ${cmd.scaledMeterValue} A")
-				result << createEvent(name:"amperage", value: cmd.scaledMeterValue, unit:"A", descriptionText:"${device.displayName} consumes ${cmd.scaledMeterValue} A")
-				break;
-			default:
-				log.warn("Unsupported scale. Skipped cmd: ${cmd}")
-		}
-	}
-	else {
-		log.warn("Unsupported meter type. Skipped cmd: ${cmd}")
-    }    
-	return result
+	logDebug "firing meter report event ($cmd)"
+	updateReports(cmd)
 }
 
 /**
@@ -436,7 +392,7 @@ def zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd) {
  * @return Switch Event with on or off value.
 */
 def zwaveEvent(hubitat.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd) {
-	if (logEnable) log.debug "Qubino Smart Plug 16A: firing switch binary report event"
+	logDebug "firing switch binary report event ($cmd)"
     createEvent(name:"switch", value: cmd.value ? "on" : "off")
 }
 /**
@@ -446,8 +402,7 @@ def zwaveEvent(hubitat.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd) {
  * @return void.
 */
 def zwaveEvent(hubitat.zwave.commands.configurationv2.ConfigurationReport cmd){
-	if (logEnable) log.debug "Qubino Smart Plug 16A: firing configuration report event"
-	if (logEnable) log.debug cmd.configurationValue
+	logDebug "firing configuration report event ($cmd.configurationValue)"
 }
 /**
  * Event handler for received Basic Report frames.
@@ -456,25 +411,7 @@ def zwaveEvent(hubitat.zwave.commands.configurationv2.ConfigurationReport cmd){
  * @return void
 */
 def zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd){
-	if (logEnable) log.debug "Qubino Smart Plug 16A: firing basic report event"
-	if (logEnable) log.debug cmd
-}
-/**
- * Event handler for received MultiChannelEndPointReport commands. Used to distinguish when the device is in singlechannel or multichannel configuration. 
- *
- * @param cmd communication frame.
- * @return commands to set up a MC Lifeline association.
-*/
-def zwaveEvent(hubitat.zwave.commands.multichannelv3.MultiChannelEndPointReport cmd){
-	if (logEnable) log.debug "Qubino Smart Plug 16A: firing MultiChannelEndPointReport"
-	if(cmd.endPoints > 0){
-		state.isMcDevice = true;
-		createChildDevices();
-	}
-	def cmds = []
-	cmds << response(zwave.associationV1.associationRemove(groupingIdentifier:1).format())
-	cmds << response(zwave.multiChannelAssociationV2.multiChannelAssociationSet(groupingIdentifier: 1, nodeId: [0,zwaveHubNodeId,1]).format())
-	return cmds
+	logDebug "firing basic report event ($cmd)"
 }
 /**
  * Event handler for received Multi Channel Encapsulated commands.
@@ -483,7 +420,7 @@ def zwaveEvent(hubitat.zwave.commands.multichannelv3.MultiChannelEndPointReport 
  * @return parsed event.
 */
 def zwaveEvent(hubitat.zwave.commands.multichannelv3.MultiChannelCmdEncap cmd){
-	if (logEnable) log.debug "Qubino Smart Plug 16A: firing MC Encapsulation event"
+	logDebug "firing MC Encapsulation event"
 	def encapsulatedCommand = cmd.encapsulatedCommand()
 	if (encapsulatedCommand) {
 			return zwaveEvent(encapsulatedCommand, cmd)
@@ -496,7 +433,7 @@ def zwaveEvent(hubitat.zwave.commands.multichannelv3.MultiChannelCmdEncap cmd){
  * @return List of events to update the temperature control elements with received values.
 */
 def zwaveEvent(hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelReport cmd, hubitat.zwave.commands.multichannelv3.MultiChannelCmdEncap command){
-	if (logEnable) log.debug "Qubino Smart Plug 16A: firing MC sensor multilevel event"
+	logDebug "firing MC sensor multilevel event"
 	def result = []
     return null
 }
@@ -507,11 +444,7 @@ def zwaveEvent(hubitat.zwave.commands.sensormultilevelv5.SensorMultilevelReport 
  * @return List of events to update the ON / OFF and analogue control elements with received values.
 */
 def zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport cmd, hubitat.zwave.commands.multichannelv3.MultiChannelCmdEncap command){
-    if (logEnable) {
-       log.debug "Qubino Smart Plug 16A: firing MC switch multilevel event"
-	   log.debug cmd
-	   log.debug command
-    }    
+    logDebug "firing MC switch multilevel event ($cmd), ($command)"
 	def result = []
 	result << createEvent(name:"switch", value: cmd.value ? "on" : "off")
 	return result
@@ -523,37 +456,51 @@ def zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport 
  * @return List of events to update power control elements with received values.
 */
 def zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd, hubitat.zwave.commands.multichannelv3.MultiChannelCmdEncap command){
-    if (logEnable) {
-        log.debug "Qubino Smart Plug 16A: firing MC Meter Report event"
-	    log.debug command
-	    log.debug cmd
+    logDebug ("firing MC Meter Report event ($cmd), ($command)")
+	updateReports(cmd)
+}
+
+private void UpdateTile(  ){
+    def val = ""
+    
+    // Create special compound/html tile
+//    val = "<B>Power : </B> ${state.power} </BR><B>Amperage : </B> ${state.amperage}  </BR><B>Energy : </B> ${state.energy}  </BR><B>Voltage : </B> ${state.voltage}" 
+    val = "<B>Power : </B> "+ device.currentValue("power").toString() + " W</BR><B>Amperage : </B> " + device.currentValue("amperage").toString() + " A</BR><B>Energy : </B> " + device.currentValue("energy").toString() + " KWh</BR><B>Voltage : </B> " + device.currentValue("voltage").toString() + " V" 
+    if( device.currentValue( "htmlTile" ).toString() != val ){
+       sendEvent( name: "htmlTile", value: val )
     }
+}
+
+/*
+ * Process meters report
+*/
+def updateReports(cmd) {
 	def result = []
 	if (cmd.meterType == 1) {
 		switch(cmd.scale){
 			case 0:
-				if (logEnable) log.debug("energy report is ${cmd.scaledMeterValue} kWh")
+				logDebug("energy report is ${cmd.scaledMeterValue} kWh")
 				result << createEvent(name:"energy", value: cmd.scaledMeterValue, unit:"kWh", descriptionText:"${device.displayName} consumed ${cmd.scaledMeterValue} kWh")
 				break;
 			case 1:
-				if (logEnable) log.debug("energy report is ${cmd.scaledMeterValue} kVah")
+				logDebug("energy report is ${cmd.scaledMeterValue} kVah")
 				result << createEvent(name:"energy", value: cmd.scaledMeterValue, unit:"kVah", descriptionText:"${device.displayName} consumed ${cmd.scaledMeterValue} kVah")
 				break;
 			case 2:
-				if (logEnable) log.debug("power report is ${cmd.scaledMeterValue} W")
+				logDebug("power report is ${cmd.scaledMeterValue} W")
+                runIn(1, "UpdateTile")
 				result << createEvent(name:"power", value: cmd.scaledMeterValue, unit:"W", descriptionText:"${device.displayName} consumes ${cmd.scaledMeterValue} W")
-                UpdateTile()
 				break;
 			case 3:
-				if (logEnable) log.debug("frequency report is ${cmd.scaledMeterValue} Hz")
+				logDebug("frequency report is ${cmd.scaledMeterValue} Hz")
 				result << createEvent(name:"frequency", value: cmd.scaledMeterValue, unit:"Hz", descriptionText:"${device.displayName} level ${cmd.scaledMeterValue} Hz")
 				break;
 			case 4:
-				if (logEnable) log.debug("voltage report is ${cmd.scaledMeterValue} V")
+				logDebug("voltage report is ${cmd.scaledMeterValue} V")
 				result << createEvent(name:"voltage", value: cmd.scaledMeterValue, unit:"V", descriptionText:"${device.displayName} level ${cmd.scaledMeterValue} V")
 				break;
 			case 5:
-				if (logEnable) log.debug("amperage report is ${cmd.scaledMeterValue} A")
+				logDebug("amperage report is ${cmd.scaledMeterValue} A")
 				result << createEvent(name:"amperage", value: cmd.scaledMeterValue, unit:"A", descriptionText:"${device.displayName} consumes ${cmd.scaledMeterValue} A")
 				break;
 			default:
@@ -566,13 +513,26 @@ def zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd, hubitat.zwave.com
 	return result
 }
 
-private void UpdateTile(  ){
-    def val = ""
-    
-    // Create special compound/html tile
-//    val = "<B>Power : </B> ${state.power} </BR><B>Amperage : </B> ${state.amperage}  </BR><B>Energy : </B> ${state.energy}  </BR><B>Voltage : </B> ${state.voltage}" 
-    val = "<B>Power : </B> "+ device.currentValue("power").toString() + " W</BR><B>Amperage : </B> " + device.currentValue("amperage").toString() + " A</BR><B>Energy : </B> " + device.currentValue("energy").toString() + " KWh</BR><B>Voltage : </B> " + device.currentValue("voltage").toString() + " V" 
-    if( device.currentValue( "htmlTile" ).toString() != val ){
-       sendEvent( name: "htmlTile", value: val )
+/*
+ * Send zwave commands to device. Need to see why secure does not work.
+*/
+def sendToDevice(hubitat.zwave.Command cmd) {
+    if (getDataValue("zwaveSecurePairingComplete") == "true") {
+		logDebug "sendToDevice secured ($cmd)"
+        zwave.securityV1.securityMessageEncapsulation().encapsulate(cmd).format()
+    } else {
+		logDebug "sendToDevice($cmd)"
+        cmd.format()
     }
+}
+
+
+def sendToDevice(List<hubitat.zwave.Command> commands, delay=200) {
+	logDebug "sendToDevice($commands)"
+	delayBetween(commands.collect{ sendToDevice(it) }, delay)
+}
+
+// Write to log if enabled
+private logDebug(msg) {
+    if (logEnable) log.debug "Qubino Smart Plug 16A: $msg"
 }
