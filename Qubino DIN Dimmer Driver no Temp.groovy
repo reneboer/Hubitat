@@ -606,8 +606,6 @@ def sendToDevice(hubitat.zwave.Command cmd) {
     }
 }
 
-}
-
 def sendToDevice(List<hubitat.zwave.Command> commands, delay=200) {
 	logDebug "sendToDevice($commands)"
 	delayBetween(commands.collect{ sendToDevice(it) }, delay)
