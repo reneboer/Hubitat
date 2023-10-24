@@ -1,6 +1,8 @@
 /*
     Basic Z-Wave Association tool
 
+    2023-10-24
+        - Fix for non-battery devices
     2022-12-16
         - First version
 
@@ -18,6 +20,16 @@
 
 import groovy.transform.Field
 
+@Field static Map commandClassVersions = [
+    0x84: 1, // Wakeup Notification
+    0x85: 2  // Association
+]
+
+@Field Map zwLibType = [
+    0:'N/A', 1:'Static Controller', 2:'Controller', 3:'Enhanced Slave', 4:'Slave', 5:'Installer',
+    6:'Routing Slave', 7:'Bridge Controller', 8:'Device Under Test (DUT)', 9:'N/A', 10:'AV Remote', 11:'AV Device'
+]
+
 metadata {
     definition(name: 'Basic Z-Wave Association tool', namespace: 'hubitat', author: 'Rene') {
         command 'getAssociationReport'
@@ -27,10 +39,6 @@ metadata {
     }
 }
 
-@Field Map zwLibType = [
-    0:'N/A', 1:'Static Controller', 2:'Controller', 3:'Enhanced Slave', 4:'Slave', 5:'Installer',
-    6:'Routing Slave', 7:'Bridge Controller', 8:'Device Under Test (DUT)', 9:'N/A', 10:'AV Remote', 11:'AV Device'
-]
 
 // Build-In callback Methods code
 void installed() {
@@ -213,7 +221,8 @@ List<String> sendQueueCommands(List<String> cmds) {
         state.cmdQueue = cmds
         return []
     } else {
-        return delayBetween(commandsQue, 500)
+        state.cmdQueue = []
+        return delayBetween(cmds, 500)
     }
 }
 
@@ -230,17 +239,11 @@ String secure(hubitat.zwave.Command cmd) {
 
 String secureCmd(cmd) {
     log.info "Sending command : $cmd)"
-    if (getDataValue('zwaveSecurePairingComplete') == 'true' && getDataValue('S2') == null) {
-        return zwave.securityV1.securityMessageEncapsulation().encapsulate(cmd).format()
-  } else {
+//    if (getDataValue('zwaveSecurePairingComplete') == 'true' && getDataValue('S2') == null) {
+//        return zwave.securityV1.securityMessageEncapsulation().encapsulate(cmd).format()
+//  } else {
         return secure(cmd)
-    }
+//    }
 }
 
-private static Map getCommandClassVersions() {
-    [
-        0x84: 1, // Wakeup Notification
-        0x85: 2  // Association
-    ]
-}
 
