@@ -1,4 +1,7 @@
 /**
+ *  ZVIDAR Z-TRV-V01 Thermostat Radiotor Valve Driver for Hubitat
+ *  Date: 12.11.2023
+ *	Author: Rene Boer
  *  Copyright (C) Rene Boer
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -16,7 +19,7 @@
 
 import groovy.transform.Field
 
-@Field String VERSION = "1.0"
+@Field String VERSION = "1.1"
 
 metadata {
   definition (name: "ZVIDAR Z-TRV-V01", namespace: "reneboer", author: "Rene Boer", importUrl: "https://raw.githubusercontent.com/reneboer/Hubitat/master/Drivers/ZVIDAR/Z-TRV-V01.groovy") {
@@ -47,15 +50,15 @@ metadata {
 @Field static Map CMD_CLASS_VERS = [
   0x5E: 2, // COMMAND_CLASS_ZWAVEPLUS_INFO_V2 (Insecure)
   0x55: 2, // COMMAND_CLASS_TRANSPORT_SERVICE_V2 (Insecure)
-  0x98: 1, // COMMAND_CLASS_SECURITY_V1 (Insecure) ??
+  0x98: 1, // COMMAND_CLASS_SECURITY_V1 (Insecure)
   0x9F: 1, // COMMAND_CLASS_SECURITY_2_V1 (Insecure)
   0x6C: 1, // COMMAND_CLASS_SUPERVISION_V1 (Insecure)
   0x22: 1, // COMMAND_CLASS_APPLICATION_STATUS_V1 (Insecure)
   0x20: 2, // COMMAND_CLASS_BASIC_V2 (Secure)
-  0x86: 3, // COMMAND_CLASS_VERSION_V2 (Secure)
+  0x86: 3, // COMMAND_CLASS_VERSION_V3 (Secure)
   0x85: 2, // COMMAND_CLASS_ASSOCIATION_V2 (Secure)
   0x59: 3, // COMMAND_CLASS_ASSOCIATION_GRP_INFO_V3 (Secure)
-  0x8E: 2, // COMMAND_CLASS_MULTI_CHANNEL_ASSOCIATION_V3 (Secure)
+  0x8E: 3, // COMMAND_CLASS_MULTI_CHANNEL_ASSOCIATION_V3 (Secure)
   0x72: 2, // COMMAND_CLASS_MANUFACTURER_SPECIFIC_V2 (Secure)
   0x80: 1, // COMMAND_CLASS_BATTERY_V1 (Secure)
   0x70: 4, // COMMAND_CLASS_CONFIGURATION_V4 (Secure)
@@ -83,8 +86,8 @@ metadata {
 ]
 
 void logsOff(){
-//  log.warn "debug logging disabled..."
-//  device.updateSetting("logEnable",[value:"false",type:"bool"])
+  log.warn "debug logging disabled..."
+  device.updateSetting("logEnable",[value:"false",type:"bool"])
 }
 
 
@@ -92,7 +95,7 @@ void installed() {
   log.info "installed(${VERSION})"
 }
 
-List<hubitat.zwave.Command> updated() {
+void updated() {
   log.debug "updated()"
   log.warn "debug logging is: ${logEnable == true}"
   log.warn "description logging is: ${txtEnable == true}"
@@ -101,21 +104,18 @@ List<hubitat.zwave.Command> updated() {
   runIn (5, configure)
 }
 
-List<hubitat.zwave.Command> refresh() {
+List<String> refresh() {
   logger "info", "refresh()"
   sendListToDevice([
-//    zwave.indicatorV3.indicatorGet(indicatorId: hubitat.zwave.commands.indicatorv3.IndicatorSet.INDICATOR_TYPE_READY),
-//    zwave.indicatorV3.indicatorGet(indicatorId: hubitat.zwave.commands.indicatorv3.IndicatorSet.INDICATOR_TYPE_FAULT),
-//    zwave.indicatorV3.indicatorGet(indicatorId: hubitat.zwave.commands.indicatorv3.IndicatorSet.INDICATOR_TYPE_BUSY),
     zwave.thermostatSetpointV3.thermostatSetpointGet(setpointType: hubitat.zwave.commands.thermostatsetpointv3.ThermostatSetpointSet.SETPOINT_TYPE_HEATING_1),
     zwave.sensorMultilevelV11.sensorMultilevelGet(sensorType: hubitat.zwave.commands.sensormultilevelv11.SensorMultilevelGet.SENSOR_TYPE_TEMPERATURE_VERSION_1),
     zwave.switchMultilevelV4.switchMultilevelGet(),
     zwave.thermostatModeV2.thermostatModeGet(),
     zwave.batteryV1.batteryGet()
-  ], 500)
+  ])
 }
 
-List<hubitat.zwave.Command> configure() {
+List<String> configure() {
   logger("debug", "configure()")
   setDeviceLimits()
   sendEventWrapper(name: "supportedThermostatFanModes", value: "[off]")
@@ -132,16 +132,16 @@ List<hubitat.zwave.Command> configure() {
     cmds.add(zwave.versionV2.versionGet())
     cmds.add(zwave.manufacturerSpecificV2.manufacturerSpecificGet())
   }
-  runIn ((cmds.size() * 1.5).round(), refresh)
-  sendListToDevice(cmds, 1000)
+  runIn (cmds.size(), refresh)
+  sendListToDevice(cmds, 200)  // Long delay seems to put device to sleep as i am not getting all responses.
 }
 
 List<hubitat.zwave.Command> configCmd(parameterNumber, size, Boolean boolConfigurationValue) {
-  List<hubitat.zwave.Command> cmds = []
   int intval=boolConfigurationValue ? 1 : 0
-  cmds.add(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: intval))
-  cmds.add(zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger()))
-  return cmds
+  return [
+    zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: intval),
+    zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger())
+  ]
 }
 
 List<hubitat.zwave.Command> configCmd(parameterNumber, size, scaledConfigurationValue) {
@@ -175,19 +175,8 @@ void zwaveEvent(hubitat.zwave.commands.sensormultilevelv11.SensorMultilevelRepor
   switch (cmd.sensorType) {
     case hubitat.zwave.commands.sensormultilevelv11.SensorMultilevelReport.SENSOR_TYPE_TEMPERATURE_VERSION_1:
       String cmdScale = cmd.scale == 1 ? "F" : "C"
-      Double radiatorTemperature = Double.parseDouble(convertTemperatureIfNeeded(cmd.scaledSensorValue, cmdScale, cmd.precision)).round(1) //reported setpoint
-      Double thermostatSetpoint = currentDouble("thermostatSetpoint")	//current setpoint
-      Map map = [name: "temperature", displayed: true]
-      if (radiatorTemperature < thermostatSetpoint){
-        sendEventWrapper(name: "thermostatOperatingState", value: "heating")
-      }
-      else { 
-        sendEventWrapper(name: "thermostatOperatingState", value: "idle")
-      }
-      map.value = radiatorTemperature
-      map.unit = "°" + getTemperatureScale()
-      map.descriptionText = "Temperature is ${map.value} ${map.unit}"
-      sendEventWrapper(map)
+      Double radiatorTemperature = Double.parseDouble(convertTemperatureIfNeeded(cmd.scaledSensorValue, cmdScale, cmd.precision)).round(1) 
+      sendEventWrapper(name: "temperature", value: radiatorTemperature, unit: "°" + getTemperatureScale(), descriptionText: "Temperature is ${radiatorTemperature} ${"°" + getTemperatureScale()}")
     break
     default:
       logger("warn", "zwaveEvent(SensorMultilevelReport) - Unknown sensorType - cmd: ${cmd.inspect()}")
@@ -199,7 +188,7 @@ void zwaveEvent(hubitat.zwave.commands.sensormultilevelv11.SensorMultilevelRepor
 // Report on battery level received. Warn on low batt.
 void zwaveEvent(hubitat.zwave.commands.batteryv1.BatteryReport cmd) {
   logger("trace", "zwaveEvent(BatteryReport) - cmd: ${cmd.inspect()}")
-  Map map = [ name: "battery", unit: "%", displayed: true, isStateChange: true ]
+  Map map = [ name: "battery", unit: "%" ]
   if (cmd.batteryLevel == 0xFF) {
     map.value = 1
     map.descriptionText = "Has a low battery"
@@ -274,7 +263,7 @@ void zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.ManufacturerSpecif
 
   if (cmd.manufacturerName) { device.updateDataValue("manufacturer", cmd.manufacturerName) }
   if (cmd.productTypeId) { device.updateDataValue("productTypeId", cmd.productTypeId.toString()) }
-  if (cmd.productId) { device.updateDataValue("productId", cmd.productId.toString()) }
+  if (cmd.productId) { device.updateDataValue("deviceId", cmd.productId.toString()) }
 //  if (cmd.manufacturerId){ device.updateDataValue("manufacturerId", cmd.manufacturerId.toString()) }
 
   String msr = String.format("%04X-%04X-%04X", cmd.manufacturerId, cmd.productTypeId, cmd.productId)
@@ -286,10 +275,15 @@ void zwaveEvent(hubitat.zwave.commands.configurationv2.ConfigurationReport cmd) 
   logger("trace", "zwaveEvent(ConfigurationReport) - cmd: ${cmd.inspect()}")
 }
 
-// Report on value percent open.
-void zwaveEvent(hubitat.zwave.commands.switchmultilevelv3.SwitchMultilevelReport cmd){
+// Report on value percent open. If open then we are heating.
+void zwaveEvent(hubitat.zwave.commands.switchmultilevelv4.SwitchMultilevelReport cmd){
   logger("trace", "zwaveEvent(SwitchMultilevelReport) - cmd: ${cmd.inspect()}")
   sendEventWrapper(name: "valve", value: cmd.value, unit: "%", descriptionText: "Valve open ${cmd.value}%")
+  if (cmd.value > 0) {
+    sendEventWrapper(name: "thermostatOperatingState", value: "heating")
+  } else{
+    sendEventWrapper(name: "thermostatOperatingState", value: "idle")
+  }
 }
 
 // Basic for Frost Protection mode
@@ -304,7 +298,7 @@ void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd){
 // Thermostat Mode report
 void zwaveEvent(hubitat.zwave.commands.thermostatmodev2.ThermostatModeReport cmd) {
   logger("trace", "zwaveEvent(ThermostatModeReport) - cmd: ${cmd.inspect()}")
-  Map map = [name: "thermostatMode", displayed: true]
+  Map map = [name: "thermostatMode"]
 
   switch (cmd?.mode) {
     case hubitat.zwave.commands.thermostatmodev2.ThermostatModeReport.MODE_OFF:
@@ -327,19 +321,15 @@ void zwaveEvent(hubitat.zwave.commands.thermostatsetpointv2.ThermostatSetpointRe
   logger("trace", "zwaveEvent(ThermostatSetpointReport) - cmd: ${cmd.inspect()}")
   String cmdScale = cmd.scale == 1 ? "F" : "C"
   Double radiatorTemperature = Double.parseDouble(convertTemperatureIfNeeded(cmd.scaledValue, cmdScale, cmd.precision)).round(1) //reported setpoint
-  Double minHeatingSetpoint  = currentDouble("minHeatingSetpoint ")	//current app setpoint
   switch (cmd.setpointType) {
     case hubitat.zwave.commands.thermostatsetpointv2.ThermostatSetpointReport.SETPOINT_TYPE_HEATING_1:
-      if(radiatorTemperature > minHeatingSetpoint) { // On if above
-//        sendEventWrapper(name: "thermostatMode", value: "heat")
-        sendEventWrapper(name: "thermostatOperatingState", value:  "heating")
-      } else { // off
-//        sendEventWrapper(name: "thermostatMode", value: "off")
-        sendEventWrapper(name: "thermostatOperatingState", value:  "idle")
-      }
-      sendEventWrapper(name: "thermostatSetpoint", value: radiatorTemperature, unit: cmdScale)
-      sendEventWrapper(name: "thermostatTemperatureSetpoint", value: radiatorTemperature, unit: cmdScale)
-      sendEventWrapper(name: "heatingSetpoint", value: radiatorTemperature, unit: cmdScale)
+      Map map = [unit : "°" + getTemperatureScale(), value: radiatorTemperature]
+	  map.name = "thermostatSetpoint"
+      sendEventWrapper(map)
+	  map.name = "thermostatTemperatureSetpoint"
+      sendEventWrapper(map)
+	  map.name = "heatingSetpoint"
+      sendEventWrapper(map)
     break;
     default:
       logger("warn", "Unknown setpointType ${cmd.setpointType}")
@@ -412,44 +402,36 @@ void zwaveEvent(hubitat.zwave.commands.securityv1.NetworkKeyVerify cmd) {
 }
 
 /**
-*
 * Device command functions.
 */
-hubitat.zwave.Command checkBattery() {
-  logger("debug", "checkBattery()")
-  sendToDevice(zwave.batteryV1.batteryGet())
-}
-
-List<hubitat.zwave.Command> thermostatTemperatureSetpoint(Double degrees){
-  logger("debug", "thermostatTemperatureSetpoint() - degrees: ${degrees}")
-  setHeatingSetpoint(degrees)
-}    
-
-List<hubitat.zwave.Command> setHeatingSetpoint(Double degrees) {
+// When setting the setpoint, assume we want frost protection only off.
+List<String> setHeatingSetpoint(Double degrees) {
   logger("debug", "setHeatingSetpoint() - degrees: ${degrees}")
   sendListToDevice([
     zwave.thermostatSetpointV3.thermostatSetpointSet(setpointType: hubitat.zwave.commands.thermostatsetpointv3.ThermostatSetpointSet.SETPOINT_TYPE_HEATING_1, scale:0, precision: 1, scaledValue: degrees),
-    zwave.thermostatSetpointV3.thermostatSetpointGet(setpointType: hubitat.zwave.commands.thermostatsetpointv3.ThermostatSetpointSet.SETPOINT_TYPE_HEATING_1)
+    zwave.thermostatSetpointV3.thermostatSetpointGet(setpointType: hubitat.zwave.commands.thermostatsetpointv3.ThermostatSetpointSet.SETPOINT_TYPE_HEATING_1),
+    zwave.thermostatModeV3.thermostatModeSet(mode: hubitat.zwave.commands.thermostatmodev3.ThermostatModeSet.MODE_HEAT),
+    zwave.thermostatModeV3.thermostatModeGet()
   ])
 }
 
-List<hubitat.zwave.Command> on() {
+List<String> on() {
   logger("debug", "Command on()")
   setThermostatMode(hubitat.zwave.commands.thermostatmodev3.ThermostatModeSet.MODE_HEAT)
 }
 
-List<hubitat.zwave.Command> heat() {
+List<String> heat() {
   logger("debug", "Command heat()")
   setThermostatMode(hubitat.zwave.commands.thermostatmodev3.ThermostatModeSet.MODE_HEAT)
 }
 
-List<hubitat.zwave.Command> off() {
+List<String> off() {
   logger("debug", "Command off()")
   setThermostatMode(hubitat.zwave.commands.thermostatmodev3.ThermostatModeSet.MODE_OFF)
 }
 
 // Mode 0x1F is to put TRV in direct Valve control mode. Not supported in this driver.
-List<hubitat.zwave.Command> setThermostatMode(Short mode) {
+List<String> setThermostatMode(Short mode) {
   logger("info", "setThermostatMode ${mode}")
   sendListToDevice([
       zwave.thermostatModeV3.thermostatModeSet(mode: mode),
@@ -491,11 +473,11 @@ void setThermostatFanMode(String mode) {
 
 private void setDeviceLimits() {
   if (location.temperatureScale=="F") {
-    sendEventWrapper(name:"minHeatingSetpoint", value: 41, unit: "°F", displayed: false)
-    sendEventWrapper(name:"maxHeatingSetpoint", value: 86, unit: "°F", displayed: false)
+    sendEventWrapper(name:"minHeatingSetpoint", value: 41, unit: "F")
+    sendEventWrapper(name:"maxHeatingSetpoint", value: 86, unit: "F")
   } else {
-    sendEventWrapper(name:"minHeatingSetpoint", value: 5, unit: "°C", displayed: false)
-    sendEventWrapper(name:"maxHeatingSetpoint", value: 30, unit: "°C", displayed: false)
+    sendEventWrapper(name:"minHeatingSetpoint", value: 5, unit: "C")
+    sendEventWrapper(name:"maxHeatingSetpoint", value: 30, unit: "C")
   }
 }
 
@@ -512,14 +494,14 @@ private currentDouble(attributeName) {
 }
 
 /**
-* Wrapper for sendEvent to support logging
+* Wrapper for sendEvent to limit duplicate events and support logging
 */
 private void sendEventWrapper(Map prop) {
   String cv = device.currentValue(prop.name)
-  prop.isStateChange = (cv?.toString() != prop.value?.toString()) ? true : false
-  sendEvent(prop)
-  if(prop?.descriptionText) {
-    if(txtEnable && prop?.isStateChange) {
+  Boolean isStateChange = (cv?.toString() != prop.value?.toString()) ? true : false
+  if (isStateChange) sendEvent(prop)
+  if (prop?.descriptionText) {
+    if (txtEnable && isStateChange) {
       log.info "${device.displayName} ${prop.descriptionText}"
     } else {
       logger("debug", "${prop.descriptionText}")
