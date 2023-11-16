@@ -1,6 +1,6 @@
 /**
  *  ZVIDAR Z-TRV-V01 Thermostat Radiotor Valve Driver for Hubitat
- *  Date: 12.11.2023
+ *  Date: 16.11.2023
  *	Author: Rene Boer
  *  Copyright (C) Rene Boer
  *
@@ -15,6 +15,11 @@
  *
  *  This TRV is sold under several brands like Remotec and has a z-wave 800 chip.
  *
+ *	TO-DO:
+ *
+ *	CHANGELOG:
+ *    V1.1 : Numerous small fixes. Removed running Configuration from update. User needsto press Config seperately.
+ *
  */
 
 import groovy.transform.Field
@@ -22,7 +27,7 @@ import groovy.transform.Field
 @Field String VERSION = "1.1"
 
 metadata {
-  definition (name: "ZVIDAR Z-TRV-V01", namespace: "reneboer", author: "Rene Boer", importUrl: "https://raw.githubusercontent.com/reneboer/Hubitat/master/Drivers/ZVIDAR/Z-TRV-V01.groovy") {
+  definition (name: "ZVIDAR Z-TRV-V01", namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/ZVIDAR/Z-TRV-V01.groovy") {
     capability "Actuator"
     capability "Sensor"
     capability "Thermostat"
@@ -38,6 +43,7 @@ metadata {
     attribute "lastBatteryReportReceivedAt", "String"
 
     fingerprint mfr: "1114", prod: "1024", deviceId: "1281", inClusters: "0x5E, 0x55, 0x98, 0x9F, 0x6C, 0x22", secureInClusters: "0x86, 0x85, 0x8E, 0x59, 0x72, 0x5A, 0x80, 0x70, 0x26, 0x31, 0x40, 0x43, 0x7A, 0x73, 0x87", deviceJoinName: "Remotec Thermostat"
+    fingerprint mfr: "1114", prod: "1024", deviceId: "1281", inClusters: "0x5E, 0x55, 0x98, 0x9F, 0x6C, 0x22, 0x86, 0x85, 0x8E, 0x59, 0x72, 0x5A, 0x80, 0x70, 0x26, 0x31, 0x40, 0x43, 0x7A, 0x73, 0x87", deviceJoinName: "Remotec Thermostat"
   }
 
   preferences {
@@ -101,7 +107,7 @@ void updated() {
   log.warn "description logging is: ${txtEnable == true}"
   unschedule()
   if (logEnable) runIn(86400, logsOff)
-  runIn (5, configure)
+//  runIn (5, configure)
 }
 
 List<String> refresh() {
@@ -527,7 +533,7 @@ private logger(String level, String msg) {
  */
 String sendToDevice(String cmd) {
     logger("debug", "sendToDevice String($cmd)")
-    return zwaveSecureEncap(cmd.format())
+    return zwaveSecureEncap(cmd)
 }
 
 String sendToDevice(hubitat.zwave.Command cmd) {
