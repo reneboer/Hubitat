@@ -1,6 +1,6 @@
 /**
  *  Heatit ZM Dimmer Z-Wave 800 Driver for Hubitat
- *  Date: 12.11.2023
+ *  Date: 16.11.2023
  *	Author: Rene Boer
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -25,23 +25,27 @@
  *	TO-DO:
  *
  *	CHANGELOG:
+ *    V1.1 : Fixed paramter 14 with size of 2. Added button functions for S1 and S2 when in scene controller mode.
+ *        
  */
 import groovy.transform.Field
 
-@Field String VERSION = "1.0"
+@Field String VERSION = "1.1"
 
 metadata {
-  definition (name: "Heatit ZM Dimmer", namespace: "reneboer", author: "Rene Boer", importUrl: "https://raw.githubusercontent.com/reneboer/Hubitat/master/Drivers/Heatit/Heatit ZM Dimmer.groovy") {
+  definition (name: "Heatit ZM Dimmer", namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/Heatit/Heatit%20ZM%20Dimmer.groovy") {
     capability "Actuator"
     capability "Switch"
     capability "Switch Level"
     capability "Power Meter"
     capability "EnergyMeter"
     capability "ChangeLevel"
-    capability "Configuration" //Needed for configure() function to set any specific configurations
-    capability "Refresh"       //Needed for refresh() function to set get current power and levels
+    capability "PushableButton"
+    capability "HoldableButton"
+    capability "ReleasableButton"
+    capability "Configuration"
+    capability "Refresh"
 
-    //attribute "kwhConsumption", "number" //attribute used to store and display power consumption in KWH 
     attribute "powerHigh", "number"
     attribute "powerLow", "number"
 	attribute "overloadProtection", "number"
@@ -49,6 +53,7 @@ metadata {
     command "resetPower" //command to issue Meter Reset commands to reset accumulated power measurements
 
     fingerprint mfr: "411", prod: "33", deviceId: "8449", inClusters: "0x5E, 0x55, 0x98, 0x9F, 0x6C", secureInClusters: "0x86, 0x26, 0x32, 0x5B, 0x70, 0x71, 0x8E, 0x87, 0x85, 0x59, 0x72, 0x5A, 0x73, 0x7A", deviceJoinName: "Heatit ZM Dimmer"
+    fingerprint mfr: "411", prod: "33", deviceId: "8449", inClusters: "0x5E, 0x26, 0x32, 0x70, 0x5B, 0x8E, 0x87, 0x85, 0x59, 0x55, 0x71, 0x86, 0x72, 0x5A, 0x73, 0x98, 0x9F, 0x6C, 0x7A", deviceJoinName: "Heatit ZM Dimmer"
   }
 
   preferences {
@@ -89,7 +94,7 @@ metadata {
   4:  [input: [name: "configParam4", type: "number", title: "Automatic turn ON", range: "0..86400", description:"Time for the dimmer to turn on automatically after turning it off.<br/>0 Disabled, 1-86400s", required: true, defaultValue: 0], parameterSize: 4],
   5:  [input: [name: "configParam5", type: "number", title: "Turn off delay time", range: "0..60", description:"The time it takes before the dimmer turns off after turning it off.<br/>0 Disabled, 1-60s", required: true, defaultValue: 0], parameterSize: 1],
   6:  [input: [name: "configParam6", type: "enum", title: "S1 functionality", description: "S1 switch functionality.", defaultValue: 0, required: true, options:[[0:"Default Dimming"], [1:"Scene Controller"], [2:"Scene Controller and Dimming"], [3:"Disabled"]]], parameterSize: 1],
-  7:  [input: [name: "configParam7", type: "enum", title: "S2 functionality", description: "S1 switch functionality.", defaultValue: 0, required: true, options:[[0:"Default Dimming"], [1:"Scene Controller"], [2:"Scene Controller and Dimming"], [3:"Disabled"]]], parameterSize: 1],
+  7:  [input: [name: "configParam7", type: "enum", title: "S2 functionality", description: "S2 switch functionality.", defaultValue: 0, required: true, options:[[0:"Default Dimming"], [1:"Scene Controller"], [2:"Scene Controller and Dimming"], [3:"Disabled"]]], parameterSize: 1],
   8:  [input: [name: "configParam8", type: "enum", title: "Dimming duration", description:"Define how long it takes to dim when using the external switch.", required: true, defaultValue: 50, options: [[0:"Instantly"], [5:"0.5s"], [10:"1s"], [20:"2s"], [30:"3s"], [40:"4s"], [50:"5s"], [60:"6s"], [70:"7s"], [80:"8s"], [90:"9s"], [100:"10s"]]], parameterSize: 1],
   9:  [input: [name: "configParam9", type: "enum", title: "Dimmer Curve", description: "Choose if the dimmer uses Linear or Logarythmic dimming.", defaultValue: 0, required: true, options:[[0:"Liniar dimming"], [1:"Logarithmic dimming"]]], parameterSize: 1],
   10: [input: [name: "configParam10",type: "enum", title: "Load dimming mode", description: "Choose the dimming type.", defaultValue: 0, required: true, options:[[0:"Trailing edge"], [1:"Leading edge"]]], parameterSize: 1],
@@ -101,8 +106,8 @@ metadata {
 ]
 
 void logsOff(){
-//  log.warn "debug logging disabled..."
-//  device.updateSetting("logEnable",[value:"false",type:"bool"])
+  log.warn "debug logging disabled..."
+  device.updateSetting("logEnable",[value:"false",type:"bool"])
 }
 
 
@@ -118,7 +123,7 @@ void updated() {
   log.warn "description logging is: ${txtEnable == true}"
   unschedule()
   if (logEnable) runIn(86400, logsOff)
-  runIn (5, configure)
+//  runIn (5, configure)
 }
 
 List<hubitat.zwave.Command> refresh() {
@@ -153,24 +158,43 @@ List<String> configure() {
   sendListToDevice(cmds, 500)
 }
 
-List<String> configCmd(parameterNumber, size, Boolean boolConfigurationValue) {
+private List<String> configCmd(parameterNumber, size, Boolean boolConfigurationValue) {
   return [
     zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: boolConfigurationValue ? 1 : 0),
     zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger())
   ]
 }
 
-List<String> configCmd(parameterNumber, size, scaledConfigurationValue) {
-  List<hubitat.zwave.Command> cmds = []
-  int intval=scaledConfigurationValue.toInteger()
-  if (size==1) {
-    if (intval < 0) intval = 256 + intval
-    cmds.add(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), configurationValue: [intval]))
-  } else {
-    cmds.add(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: intval))
+private List<String> configCmd(parameterNumber, size, value) {
+  List<Integer> confValue = []
+  
+  switch(size) {
+    case 1:
+      confValue = [value.toInteger()]
+      break
+    case 2:
+      short value1   = value & 0xFF
+      short value2 = (value >> 8) & 0xFF
+      confValue = [value2.toInteger(), value1.toInteger()]
+      break
+    case 3:
+      short value1   = value & 0xFF
+      short value2 = (value >> 8) & 0xFF
+      short value3 = (value >> 16) & 0xFF
+      confValue = [value3.toInteger(), value2.toInteger(), value1.toInteger()]
+      break
+    case 4:
+      short value1 = value & 0xFF
+      short value2 = (value >> 8) & 0xFF
+      short value3 = (value >> 16) & 0xFF
+      short value4 = (value >> 24) & 0xFF
+      confValue = [value4.toInteger(), value3.toInteger(), value2.toInteger(), value1.toInteger()]
+      break
   }
-  cmds.add(zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger()))
-  return cmds
+  return [
+     zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), configurationValue: confValue), 
+     zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger())
+  ]
 }
 
 String on() {
@@ -190,6 +214,8 @@ String setLevel(level) {
 
 String setLevel(level, duration) {
   if(level > 99) level = 99
+  if (duration > 100) duration = 100
+  if (duration < 1) duration = 1
   logger("debug", "setLevel(value: ${level}, dimmingDuration: ${duration})")
   sendToDevice(zwave.switchMultilevelV4.switchMultilevelSet(value: level, dimmingDuration: duration))
 }
@@ -227,6 +253,40 @@ void parse(String description) {
 // Handle zwave events not expected
 void zwaveEvent(hubitat.zwave.Command cmd) {
   logger("warn", "zwaveEvent(Command) - Unspecified - cmd: ${cmd.inspect()}")
+}
+
+void zwaveEvent(hubitat.zwave.commands.switchmultilevelv4.SwitchMultilevelStopLevelChange cmd) {
+  logger("trace", "zwaveEvent(SwitchMultilevelStopLevelChange) - cmd: ${cmd.inspect()}")
+  //not needed. do nothing.
+}
+
+//CentralSceneNotification(keyAttributes:0, sceneNumber:1, sequenceNumber:0, slowRefresh:true)
+void zwaveEvent(hubitat.zwave.commands.centralscenev3.CentralSceneNotification cmd) {
+  logger("trace", "zwaveEvent(CentralSceneNotification) - cmd: ${cmd.inspect()}")
+  Integer button = cmd.sceneNumber
+  Integer key = cmd.keyAttributes
+  String action
+  switch (key){
+    case 0: //pushed
+      action = "pushed"
+      break
+    case 1:	//released, only after 2
+      state."${button}" = 0
+      action = "released"
+      break
+    case 2:	//holding
+      if (state."${button}" == 0){
+        state."${button}" = 1
+        runInMillis(200,delayHold,[data:button])
+      }
+      break
+    case 3:	//double tap, 4 is tripple tap
+      action = "doubleTapped"
+      break
+	default:
+      logger("warn", "zwaveEvent(CentralSceneNotification) - skipped. Unknown button action.")
+  }
+  if (action) sendButtonEvent(action, button, "physical")
 }
 
 void zwaveEvent(hubitat.zwave.commands.switchmultilevelv4.SwitchMultilevelReport cmd){
@@ -339,15 +399,43 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
   sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID, reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0).format()), hubitat.device.Protocol.ZWAVE))
 }
 
+void delayHold(button){
+  sendButtonEvent("held", button, "physical")
+}
+
+void push(button){
+  sendButtonEvent("pushed", button, "digital")
+}
+
+void hold(button){
+  sendButtonEvent("held", button, "digital")
+}
+
+void release(button){
+  sendButtonEvent("released", button, "digital")
+}
+
+void doubleTap(button){
+  sendButtonEvent("doubleTapped", button, "digital")
+}
+
+void sendButtonEvent(action, button, type){
+  if (button == 1 || button == 2) {
+    sendEventWrapper(name:action, value:button, descriptionText:"button ${button} was ${action} [${type}]", isStateChange:true, type:type)
+  } else {
+    logger("warn", "button number must be one or two.")
+  }	  
+}
+
 /**
 * Wrapper for sendEvent to limit duplicate events and support logging
 */
 private void sendEventWrapper(Map prop) {
   String cv = device.currentValue(prop.name)
-  Boolean isStateChange = (cv?.toString() != prop.value?.toString()) ? true : false
-  if (isStateChange) sendEvent(prop)
+  Boolean changed = (prop.isStateChange == true) || ((cv?.toString() != prop.value?.toString()) ? true : false)
+  if (changed) sendEvent(prop)
   if (prop?.descriptionText) {
-    if (txtEnable && isStateChange) {
+    if (txtEnable && changed) {
       log.info "${device.displayName} ${prop.descriptionText}"
     } else {
       logger("debug", "${prop.descriptionText}")
@@ -373,7 +461,7 @@ private logger(String level, String msg) {
  */
 String sendToDevice(String cmd) {
     logger("debug", "sendToDevice String($cmd)")
-    return zwaveSecureEncap(cmd.format())
+    return zwaveSecureEncap(cmd)
 }
 
 String sendToDevice(hubitat.zwave.Command cmd) {
