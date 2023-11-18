@@ -26,11 +26,11 @@
  *
  *	CHANGELOG:
  *    V1.1 : Fixed paramter 14 with size of 2. Added button functions for S1 and S2 when in scene controller mode.
- *        
+ *    V1.2 : Added supervisedEncap to handle S2 retransmissions properly. powerHigh/Low reset when running resetPower.
  */
 import groovy.transform.Field
 
-@Field String VERSION = "1.1"
+@Field String VERSION = "1.2"
 
 metadata {
   definition (name: "Heatit ZM Dimmer", namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/Heatit/Heatit%20ZM%20Dimmer.groovy") {
@@ -48,7 +48,7 @@ metadata {
 
     attribute "powerHigh", "number"
     attribute "powerLow", "number"
-	attribute "overloadProtection", "number"
+	  attribute "overloadProtection", "number"
 
     command "resetPower" //command to issue Meter Reset commands to reset accumulated power measurements
 
@@ -62,7 +62,6 @@ metadata {
     input name: "txtEnable", type: "bool", title: "Enable descriptionText logging", defaultValue: true
   }
 }
-
 
 @Field static Map CMD_CLASS_VERS = [
   0x85: 2, // COMMAND_CLASS_ASSOCIATION_V2
@@ -101,8 +100,8 @@ metadata {
   11: [input: [name: "configParam11",type: "number", title: "Maximum dim level", range: "2..99", description:"Highest dim level of the dimmer.<br/>2-99%", required: true, defaultValue: 90], parameterSize: 1],
   12: [input: [name: "configParam12",type: "number", title: "Minmum dim level", range: "1..98", description:"Lowest dim level of the dimmer.<br/>1-98%", required: true, defaultValue: 15], parameterSize: 1],
   13: [input: [name: "configParam13",type: "number", title: "Meter report threshold", range: "0..250", description:"Threshold for device to send meter report in W.<br/>0 Disabled, 1-250W", required: true, defaultValue: 10], parameterSize: 1],
-  14: [input: [name: "configParam14", type: "number", title: "Meter report interval", range: "30..65535", description:"Time interval between consecutive meter reports in seconds.<br/>30-65535s", required: true, defaultValue: 810], parameterSize: 2],
-  15: [input: [name: "configParam15", type: "bool", title: "ON/OFF Functionality", description: "Set to true for non-dimmable loads.", defaultValue: false, required: true], parameterSize: 1]
+  14: [input: [name: "configParam14",type: "number", title: "Meter report interval", range: "30..65535", description:"Time interval between consecutive meter reports in seconds.<br/>30-65535s", required: true, defaultValue: 810], parameterSize: 2],
+  15: [input: [name: "configParam15",type: "bool", title: "ON/OFF Functionality", description: "Set to true for non-dimmable loads.", defaultValue: false, required: true], parameterSize: 1]
 ]
 
 void logsOff(){
@@ -110,11 +109,10 @@ void logsOff(){
   device.updateSetting("logEnable",[value:"false",type:"bool"])
 }
 
-
 void installed() {
   log.info "installed(${VERSION})"
-  device.updateDataValue("powerLow", -1)
-  device.updateDataValue("powerHigh", -1)
+  sendEventWrapper(name:"powerHigh", value: -1, descriptionText:"init powerHigh")
+  sendEventWrapper(name:"powerLow", value: -1, descriptionText:"init powerLow")
 }
 
 void updated() {
@@ -126,42 +124,42 @@ void updated() {
 //  runIn (5, configure)
 }
 
-List<hubitat.zwave.Command> refresh() {
+void refresh() {
   logger "info", "refresh()"
-  sendListToDevice([
-    zwave.meterV5.meterGet(scale: 0x00),
-    zwave.meterV5.meterGet(scale: 0x02),
-    zwave.switchMultilevelV4.switchMultilevelGet(),
-    zwave.notificationV8.notificationGet(notificationType: hubitat.zwave.commands.notificationv8.NotificationGet.NOTIFICATION_TYPE_POWER_MANAGEMENT)
+  sendCommands([
+    secureCmd(zwave.meterV5.meterGet(scale: 0x00)),
+    secureCmd(zwave.meterV5.meterGet(scale: 0x02)),
+    secureCmd(zwave.switchMultilevelV4.switchMultilevelGet()),
+    secureCmd(zwave.notificationV8.notificationGet(notificationType: hubitat.zwave.commands.notificationv8.NotificationGet.NOTIFICATION_TYPE_POWER_MANAGEMENT))
   ], 500)
 }
 
 /**
  * Configuration capability command handler.
 */
-List<String> configure() {
+void configure() {
   logger("debug", "configure()")
 
   List<hubitat.zwave.Command> cmds=[]
-  cmds.add(zwave.associationV2.associationRemove(groupingIdentifier:1))
-  cmds.add(zwave.associationV2.associationSet(groupingIdentifier:1, nodeId:zwaveHubNodeId))
+  cmds.add(supervisionEncap(zwave.associationV2.associationRemove(groupingIdentifier:1)))
+  cmds.add(supervisionEncap(zwave.associationV2.associationSet(groupingIdentifier:1, nodeId:zwaveHubNodeId)))
   configParams.each { param, data ->
     if (settings[data.input.name] != null) {
       cmds.addAll(configCmd(param, data.parameterSize, settings[data.input.name]))
     }
   }
   if (!device.getDataValue("MSR")) {
-    cmds.add(zwave.versionV2.versionGet())
-    cmds.add(zwave.manufacturerSpecificV2.manufacturerSpecificGet())
+    cmds.add(secureCmd(zwave.versionV3.versionGet()))
+    cmds.add(secureCmd(zwave.manufacturerSpecificV2.manufacturerSpecificGet()))
   }
   runIn (cmds.size() * 2, refresh)
-  sendListToDevice(cmds, 500)
+  sendCommands(cmds, 500)
 }
 
 private List<String> configCmd(parameterNumber, size, Boolean boolConfigurationValue) {
   return [
-    zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: boolConfigurationValue ? 1 : 0),
-    zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger())
+    supervisionEncap(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: boolConfigurationValue ? 1 : 0)),
+    secureCmd(zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger()))
   ]
 }
 
@@ -192,51 +190,53 @@ private List<String> configCmd(parameterNumber, size, value) {
       break
   }
   return [
-     zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), configurationValue: confValue), 
-     zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger())
+     supervisionEncap(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), configurationValue: confValue)), 
+     secureCmd(zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger()))
   ]
 }
 
-String on() {
+void on() {
   logger("debug", "on()")
-  sendToDevice(zwave.basicV1.basicSet(value: 0xFF))
+  sendCommands(supervisionEncap(zwave.basicV1.basicSet(value: 0xFF)))
 }
-String off() {
+void off() {
   logger("debug", "off()")
-  sendToDevice(zwave.basicV1.basicSet(value: 0x00))
+  sendCommands(supervisionEncap(zwave.basicV1.basicSet(value: 0x00)))
 }
 
-String setLevel(level) {
+void setLevel(level) {
   if(level > 99) level = 99
   logger("debug", "setLevel(value: ${level})")
-  sendToDevice(zwave.switchMultilevelV4.switchMultilevelSet(value: level, dimmingDuration: 0x00))
+  sendCommands(supervisionEncap(zwave.switchMultilevelV4.switchMultilevelSet(value: level, dimmingDuration: 0x00)))
 }
 
-String setLevel(level, duration) {
+void setLevel(level, duration) {
   if(level > 99) level = 99
   if (duration > 100) duration = 100
   if (duration < 1) duration = 1
   logger("debug", "setLevel(value: ${level}, dimmingDuration: ${duration})")
-  sendToDevice(zwave.switchMultilevelV4.switchMultilevelSet(value: level, dimmingDuration: duration))
+  sendCommands(supervisionEncap(zwave.switchMultilevelV4.switchMultilevelSet(value: level, dimmingDuration: duration)))
 }
 
-String startLevelChange(direction) {
+void startLevelChange(direction) {
   Boolean upDownVal = direction == "down" ? true : false
   Short dimmingDuration = Math.round((settings."param8"!=null? settings."param8":50) / 10)
   Short startLevel = device.currentValue("level")
   logger("debug", "startLevelChange(upDown: ${direction}, startLevel: ${startLevel}, dimmingDuration: ${dimmingDuration})")
-  sendToDevice(zwave.switchMultilevelV4.switchMultilevelStartLevelChange(ignoreStartLevel: true, startLevel: startLevel, upDown: upDownVal, dimmingDuration: dimmingDuration))
+  sendCommands(supervisionEncap(zwave.switchMultilevelV4.switchMultilevelStartLevelChange(ignoreStartLevel: true, startLevel: startLevel, upDown: upDownVal, dimmingDuration: dimmingDuration)))
 }
 
-String stopLevelChange() {
+void stopLevelChange() {
   logger("debug", "stopLevelChange()")
-  sendToDevice(zwave.switchMultilevelV4.switchMultilevelStopLevelChange())
+  sendCommands(supervisionEncap(zwave.switchMultilevelV4.switchMultilevelStopLevelChange()))
 }
 
-String resetPower() {
+void resetPower() {
   logger("debug", "resetPower()")
   runIn (10, refresh)
-  sendToDevice(zwave.meterV2.meterReset())
+  sendCommands(supervisionEncap(zwave.meterV2.meterReset()))
+  sendEventWrapper(name:"powerHigh", value: -1, descriptionText:"reset powerHigh")
+  sendEventWrapper(name:"powerLow", value: -1, descriptionText:"reset powerLow")
 }
 
 void parse(String description) {
@@ -308,6 +308,8 @@ void zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd) {
       if (val >= 0 && val <= 300) {
         def valLow = device.currentValue("powerLow")
         def valHigh = device.currentValue("powerHigh")
+//        if (valLow == null) sendEventWrapper(name:"powerLow", value: -1)
+//	      if (valHigh == null) sendEventWrapper(name:"powerHigh", value: -1)
         if (val > valHigh || valHigh == -1) sendEventWrapper(name:"powerHigh", value: val)
         if (val < valLow || valLow == -1) sendEventWrapper(name:"powerLow", value: val)
       }
@@ -396,7 +398,23 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
   } else {
     logger("error", "SupervisionGet - Non-parsed - description: ${description?.inspect()}")
   }
-  sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID, reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0).format()), hubitat.device.Protocol.ZWAVE))
+  sendCommands(secureCmd(zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID, reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0)))
+}
+
+// Handle S2 Suportvision get. No multi channel support.
+void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionReport cmd) {
+  logger("trace", "zwaveEvent(SupervisionReport) - cmd: ${cmd.inspect()}")
+  if (!supervisedPackets."${device.id}") { supervisedPackets."${device.id}" = [:] }
+  switch (cmd.status as Integer) {
+    case 0x00: // "No Support"
+    case 0x01: // "Working"
+    case 0x02: // "Failed"
+      logger("warn", "Supervision NOT Successful - SessionID: ${cmd.sessionID}, Status: ${cmd.status}")
+      break
+    case 0xFF: // "Success"
+      if (supervisedPackets["${device.id}"][cmd.sessionID] != null) { supervisedPackets["${device.id}"].remove(cmd.sessionID) }
+      break
+  }
 }
 
 void delayHold(button){
@@ -455,21 +473,89 @@ private logger(String level, String msg) {
   }
 }
 
-/**
- * Send z-wave commands with secure support.
- * Can be string, command or command list
- */
-String sendToDevice(String cmd) {
-    logger("debug", "sendToDevice String($cmd)")
-    return zwaveSecureEncap(cmd)
+// ====== Z-Wave send commands START ====== 
+// Inspired by zooz drivers at https://github.com/jtp10181/Hubitat/tree/main/Drivers/zooz
+
+//These send commands to the device either a list or a single command
+void sendCommands(List<String> cmds, Long delay=200) {
+  logger("debug", "sendCommands Commands($commands), delay ($delay)")
+  //Calculate supervisionCheck delay based on how many commands
+  Integer packetsCount = supervisedPackets?."${device.id}"?.size()
+  if (packetsCount > 0) {
+    Integer delayTotal = (cmds.size() * delay) + 2000
+    logger ("debug", "Setting supervisionCheck to ${delayTotal}ms | ${packetsCount} | ${cmds.size()} | ${delay}")
+    runInMillis(delayTotal, supervisionCheck, [data:1])
+   }
+   //Send the commands
+  sendHubCommand(new hubitat.device.HubMultiAction(delayBetween(cmds, delay), hubitat.device.Protocol.ZWAVE))
 }
 
-String sendToDevice(hubitat.zwave.Command cmd) {
-    logger("debug", "sendToDevice Command($cmd)")
-    return zwaveSecureEncap(cmd.format())
+//Single Command
+void sendCommands(String cmd) {
+  sendHubCommand(new hubitat.device.HubAction(cmd, hubitat.device.Protocol.ZWAVE))
 }
 
-List<String> sendListToDevice(List<hubitat.zwave.Command> commands, Long delay=100) {
-    logger("debug", "sendListToDevice Commands($commands), delay ($delay)")
-    delayBetween(commands.collect{ sendToDevice(it) }, delay)
+//Secure and MultiChannel Encapsulate
+String secureCmd(String cmd) {
+  logger("debug", "secureCmd String(${cmd})")
+  return zwaveSecureEncap(cmd)
 }
+String secureCmd(hubitat.zwave.Command cmd) {
+  logger("debug", "secureCmd Command(${cmd})")
+  return zwaveSecureEncap(cmd)
+}
+
+// ====== Supervision Encapsulate START ====== 
+@Field static Map<String, Map<Short, String>> supervisedPackets = new java.util.concurrent.ConcurrentHashMap()
+@Field static Map<String, Short> sessionIDs = new java.util.concurrent.ConcurrentHashMap()
+
+String supervisionEncap(hubitat.zwave.Command cmd) {
+  logger("trace", "supervisionEncap(): ${cmd}")
+  if (getDataValue("S2")?.toInteger() != null) {
+    //Encap with SupervisionGet
+    Short sessId = getSessionId()
+    def cmdEncap = zwave.supervisionV1.supervisionGet(sessionID: sessId).encapsulate(cmd)
+    logger("debug", "New Supervised Packet for Session: ${sessId}")
+    if (supervisedPackets["${device.id}"] == null) { supervisedPackets["${device.id}"] = [:] }
+    supervisedPackets["${device.id}"][sessId] = cmdEncap
+    //Calculate supervisionCheck delay based on how many cached packets
+    Integer packetsCount = supervisedPackets?."${device.id}"?.size()
+    Integer delayTotal = (packetsCount * 500) + 2000
+    runInMillis(delayTotal, supervisionCheck, [data:1])
+    //Send back secured command
+    return secureCmd(cmdEncap)
+  } else {
+    //If supervision disabled just multichannel and secure
+    return secureCmd(cmd)
+  }
+}
+
+Short getSessionId() {
+  Short sessId = sessionIDs["${device.id}"] ?: state.lastSupervision ?: 0
+  sessId = (sessId + 1) % 64  // Will always will return between 0-63
+  state.lastSupervision = sessId
+  sessionIDs["${device.id}"] = sessId
+  return sessId
+}
+
+void supervisionCheck(Integer num) {
+  Integer packetsCount = supervisedPackets?."${device.id}"?.size()
+  logger("debug", "Supervision Check #${num} - Packet Count: ${packetsCount}")
+  if (packetsCount > 0 ) {
+    List<String> cmds = []
+    supervisedPackets["${device.id}"].each { sid, cmd ->
+      logger("warn",  "Re-Sending Supervised Session: ${sid} (Retry #${num})")
+      cmds << secureCmd(cmd)
+    }
+    sendCommands(cmds)
+    if (num >= 3) { //Clear after this many attempts
+      logger("warn",  "Supervision MAX RETIES (${num}) Reached")
+      supervisedPackets["${device.id}"].clear()
+    } else { //Otherwise keep trying
+      Integer delayTotal = (packetsCount * 500) + 2000
+      runInMillis(delayTotal, supervisionCheck, [data:num+1])
+    }
+  }
+}
+// ====== Supervision Encapsulate END ======
+
