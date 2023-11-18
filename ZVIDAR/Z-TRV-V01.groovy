@@ -19,12 +19,13 @@
  *
  *	CHANGELOG:
  *    V1.1 : Numerous small fixes. Removed running Configuration from update. User needsto press Config seperately.
+ *    V1.2 : Added supervisedEncap to handle S2 retransmissions properly.
  *
  */
 
 import groovy.transform.Field
 
-@Field String VERSION = "1.1"
+@Field String VERSION = "1.2"
 
 metadata {
   definition (name: "ZVIDAR Z-TRV-V01", namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/ZVIDAR/Z-TRV-V01.groovy") {
@@ -96,7 +97,6 @@ void logsOff(){
   device.updateSetting("logEnable",[value:"false",type:"bool"])
 }
 
-
 void installed() {
   log.info "installed(${VERSION})"
 }
@@ -110,56 +110,57 @@ void updated() {
 //  runIn (5, configure)
 }
 
-List<String> refresh() {
+void refresh() {
   logger "info", "refresh()"
-  sendListToDevice([
-    zwave.thermostatSetpointV3.thermostatSetpointGet(setpointType: hubitat.zwave.commands.thermostatsetpointv3.ThermostatSetpointSet.SETPOINT_TYPE_HEATING_1),
-    zwave.sensorMultilevelV11.sensorMultilevelGet(sensorType: hubitat.zwave.commands.sensormultilevelv11.SensorMultilevelGet.SENSOR_TYPE_TEMPERATURE_VERSION_1),
-    zwave.switchMultilevelV4.switchMultilevelGet(),
-    zwave.thermostatModeV2.thermostatModeGet(),
-    zwave.batteryV1.batteryGet()
-  ])
+  List<String> cmds=[]
+  cmds.add(secureCmd(zwave.thermostatSetpointV3.thermostatSetpointGet(setpointType: hubitat.zwave.commands.thermostatsetpointv3.ThermostatSetpointSet.SETPOINT_TYPE_HEATING_1)))
+  cmds.add(secureCmd(zwave.sensorMultilevelV11.sensorMultilevelGet(sensorType: hubitat.zwave.commands.sensormultilevelv11.SensorMultilevelGet.SENSOR_TYPE_TEMPERATURE_VERSION_1)))
+  cmds.add(secureCmd(zwave.switchMultilevelV4.switchMultilevelGet()))
+  cmds.add(secureCmd(zwave.thermostatModeV2.thermostatModeGet()))
+  cmds.add(secureCmd(zwave.batteryV1.batteryGet()))
+  sendCommands(cmds)
 }
 
-List<String> configure() {
+void configure() {
   logger("debug", "configure()")
   setDeviceLimits()
   sendEventWrapper(name: "supportedThermostatFanModes", value: "[off]")
   sendEventWrapper(name: "thermostatFanMode", value: "off")
   sendEventWrapper(name: "supportedThermostatModes", value: "[off, heat]" )
-  List<hubitat.zwave.Command> cmds=[]
-  cmds.add(zwave.associationV2.associationSet(groupingIdentifier:1, nodeId:zwaveHubNodeId))
+  List<String> cmds=[]
+  cmds.add(supervisionEncap(zwave.associationV2.associationSet(groupingIdentifier:1, nodeId:zwaveHubNodeId)))
   configParams.each { param, data ->
     if (settings[data.input.name] != null) {
       cmds.addAll(configCmd(param, data.parameterSize, settings[data.input.name]))
     }
   }
   if (!device.getDataValue("MSR")) {
-    cmds.add(zwave.versionV2.versionGet())
-    cmds.add(zwave.manufacturerSpecificV2.manufacturerSpecificGet())
+    cmds.add(secureCmd(zwave.versionV2.versionGet()))
+    cmds.add(secureCmd(zwave.manufacturerSpecificV2.manufacturerSpecificGet()))
   }
   runIn (cmds.size(), refresh)
-  sendListToDevice(cmds, 200)  // Long delay seems to put device to sleep as i am not getting all responses.
+  sendCommands(cmds)
 }
 
-List<hubitat.zwave.Command> configCmd(parameterNumber, size, Boolean boolConfigurationValue) {
+List<String> configCmd(parameterNumber, size, Boolean boolConfigurationValue) {
   int intval=boolConfigurationValue ? 1 : 0
   return [
-    zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: intval),
-    zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger())
+	supervisionEncap(zwave.configurationV1.configurationSet(parameterNumber:  parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: intval)),
+    secureCmd(zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger()))
   ]
 }
 
-List<hubitat.zwave.Command> configCmd(parameterNumber, size, scaledConfigurationValue) {
-  List<hubitat.zwave.Command> cmds = []
+List<String> configCmd(parameterNumber, size, scaledConfigurationValue) {
+  // Works only for Size 1 & 4 values!
+  List<String> cmds = []
   int intval=scaledConfigurationValue.toInteger()
   if (size==1) {
     if (intval < 0) intval = 256 + intval
-    cmds.add(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), configurationValue: [intval]))
+    cmds.add(supervisionEncap(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), configurationValue: [intval])))
   } else {
-    cmds.add(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: intval))
+    cmds.add(supervisionEncap(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: intval)))
   }
-  cmds.add(zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger()))
+  cmds.add(secureCmd(zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger())))
   return cmds
 }
 
@@ -213,7 +214,7 @@ void zwaveEvent(hubitat.zwave.commands.associationv2.AssociationReport cmd) {
     logger("info", "Is associated in group ${cmd.groupingIdentifier}")
   } else if (cmd.groupingIdentifier == 1) {
     logger("info", "Associating in group ${cmd.groupingIdentifier}")
-    sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(zwave.associationV2.associationSet(groupingIdentifier:cmd.groupingIdentifier, nodeId:zwaveHubNodeId)), hubitat.device.Protocol.ZWAVE))
+    sendCommands(supervisionEncap(zwave.associationV2.associationSet(groupingIdentifier:cmd.groupingIdentifier, nodeId:zwaveHubNodeId)))
   }
 }
 
@@ -229,7 +230,7 @@ void zwaveEvent(hubitat.zwave.commands.securityv1.SecurityMessageEncapsulation c
   }
 }
 
-// Handle S2 Supervision or device will think communication failed. Not sure it applies here. Just getting double events.
+// Handle S2 Supervision or device may think communication failed. No multi channel support.
 void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
   logger("trace", "zwaveEvent(SupervisionGet) - cmd: ${cmd.inspect()}")
   hubitat.zwave.Command encapsulatedCommand = cmd.encapsulatedCommand(CMD_CLASS_VERS)
@@ -239,7 +240,23 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
   } else {
     logger("error", "SupervisionGet - Non-parsed - description: ${description?.inspect()}")
   }
-  sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID, reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0).format()), hubitat.device.Protocol.ZWAVE))
+  sendCommands(secureCmd(zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID, reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0)))
+}
+
+// Handle S2 Suportvision get. No multi channel support.
+void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionReport cmd) {
+  logger("trace", "zwaveEvent(SupervisionReport) - cmd: ${cmd.inspect()}")
+  if (!supervisedPackets."${device.id}") { supervisedPackets."${device.id}" = [:] }
+  switch (cmd.status as Integer) {
+    case 0x00: // "No Support"
+    case 0x01: // "Working"
+    case 0x02: // "Failed"
+      logger("warn", "Supervision NOT Successful - SessionID: ${cmd.sessionID}, Status: ${cmd.status}")
+      break
+    case 0xFF: // "Success"
+      if (supervisedPackets["${device.id}"][cmd.sessionID] != null) { supervisedPackets["${device.id}"].remove(cmd.sessionID) }
+      break
+  }
 }
 
 // Handle zwave events not expected
@@ -249,7 +266,7 @@ void zwaveEvent(hubitat.zwave.Command cmd) {
 }
 
 // Report on supported modes. Expecting on Off and Heat
-void zwaveEvent(hubitat.zwave.commands.thermostatmodev2.ThermostatModeSupportedReport cmd) { //bug in HE reported all are null for some reson, work ok in ST
+void zwaveEvent(hubitat.zwave.commands.thermostatmodev2.ThermostatModeSupportedReport cmd) { 
   logger("trace", "zwaveEvent(ThermostatModeSupportedReport) - cmd: ${cmd.inspect()}")
   List<String> supportedModes = []
    
@@ -413,11 +430,11 @@ void zwaveEvent(hubitat.zwave.commands.securityv1.NetworkKeyVerify cmd) {
 // When setting the setpoint, assume we want frost protection only off.
 List<String> setHeatingSetpoint(Double degrees) {
   logger("debug", "setHeatingSetpoint() - degrees: ${degrees}")
-  sendListToDevice([
-    zwave.thermostatSetpointV3.thermostatSetpointSet(setpointType: hubitat.zwave.commands.thermostatsetpointv3.ThermostatSetpointSet.SETPOINT_TYPE_HEATING_1, scale:0, precision: 1, scaledValue: degrees),
-    zwave.thermostatSetpointV3.thermostatSetpointGet(setpointType: hubitat.zwave.commands.thermostatsetpointv3.ThermostatSetpointSet.SETPOINT_TYPE_HEATING_1),
-    zwave.thermostatModeV3.thermostatModeSet(mode: hubitat.zwave.commands.thermostatmodev3.ThermostatModeSet.MODE_HEAT),
-    zwave.thermostatModeV3.thermostatModeGet()
+  sendCommands([
+    supervisionEncap(zwave.thermostatSetpointV3.thermostatSetpointSet(setpointType: hubitat.zwave.commands.thermostatsetpointv3.ThermostatSetpointSet.SETPOINT_TYPE_HEATING_1, scale:0, precision: 1, scaledValue: degrees)),
+    supervisionEncap(zwave.thermostatModeV3.thermostatModeSet(mode: hubitat.zwave.commands.thermostatmodev3.ThermostatModeSet.MODE_HEAT)),
+    secureCmd(zwave.thermostatSetpointV3.thermostatSetpointGet(setpointType: hubitat.zwave.commands.thermostatsetpointv3.ThermostatSetpointSet.SETPOINT_TYPE_HEATING_1)),
+    secureCmd(zwave.thermostatModeV3.thermostatModeGet())
   ])
 }
 
@@ -439,9 +456,9 @@ List<String> off() {
 // Mode 0x1F is to put TRV in direct Valve control mode. Not supported in this driver.
 List<String> setThermostatMode(Short mode) {
   logger("info", "setThermostatMode ${mode}")
-  sendListToDevice([
-      zwave.thermostatModeV3.thermostatModeSet(mode: mode),
-      zwave.thermostatModeV3.thermostatModeGet()
+  sendCommands([
+      supervisionEncap(zwave.thermostatModeV3.thermostatModeSet(mode: mode)),
+      secureCmd(zwave.thermostatModeV3.thermostatModeGet())
     ])
 }
 
@@ -527,21 +544,88 @@ private logger(String level, String msg) {
   }
 }
 
-/**
- * Send z-wave commands with secure support.
- * Can be string, command or command list
- */
-String sendToDevice(String cmd) {
-    logger("debug", "sendToDevice String($cmd)")
-    return zwaveSecureEncap(cmd)
+// ====== Z-Wave send commands START ====== 
+// Inspired by zooz drivers at https://github.com/jtp10181/Hubitat/tree/main/Drivers/zooz
+
+//These send commands to the device either a list or a single command
+void sendCommands(List<String> cmds, Long delay=200) {
+  logger("debug", "sendCommands Commands($commands), delay ($delay)")
+  //Calculate supervisionCheck delay based on how many commands
+  Integer packetsCount = supervisedPackets?."${device.id}"?.size()
+  if (packetsCount > 0) {
+    Integer delayTotal = (cmds.size() * delay) + 2000
+    logger ("debug", "Setting supervisionCheck to ${delayTotal}ms | ${packetsCount} | ${cmds.size()} | ${delay}")
+    runInMillis(delayTotal, supervisionCheck, [data:1])
+   }
+   //Send the commands
+  sendHubCommand(new hubitat.device.HubMultiAction(delayBetween(cmds, delay), hubitat.device.Protocol.ZWAVE))
 }
 
-String sendToDevice(hubitat.zwave.Command cmd) {
-    logger("debug", "sendToDevice Command($cmd)")
-    return zwaveSecureEncap(cmd.format())
+//Single Command
+void sendCommands(String cmd) {
+  sendHubCommand(new hubitat.device.HubAction(cmd, hubitat.device.Protocol.ZWAVE))
 }
 
-List<String> sendListToDevice(List<hubitat.zwave.Command> commands, Long delay=100) {
-    logger("debug", "sendListToDevice Commands($commands), delay ($delay)")
-    delayBetween(commands.collect{ sendToDevice(it) }, delay)
+//Secure and MultiChannel Encapsulate
+String secureCmd(String cmd) {
+  logger("debug", "secureCmd String(${cmd})")
+  return zwaveSecureEncap(cmd)
 }
+String secureCmd(hubitat.zwave.Command cmd) {
+  logger("debug", "secureCmd Command(${cmd})")
+  return zwaveSecureEncap(cmd)
+}
+
+// ====== Supervision Encapsulate START ====== 
+@Field static Map<String, Map<Short, String>> supervisedPackets = new java.util.concurrent.ConcurrentHashMap()
+@Field static Map<String, Short> sessionIDs = new java.util.concurrent.ConcurrentHashMap()
+
+String supervisionEncap(hubitat.zwave.Command cmd) {
+  logger("trace", "supervisionEncap(): ${cmd}")
+  if (getDataValue("S2")?.toInteger() != null) {
+    //Encap with SupervisionGet
+    Short sessId = getSessionId()
+    def cmdEncap = zwave.supervisionV1.supervisionGet(sessionID: sessId).encapsulate(cmd)
+    logger("debug", "New Supervised Packet for Session: ${sessId}")
+    if (supervisedPackets["${device.id}"] == null) { supervisedPackets["${device.id}"] = [:] }
+    supervisedPackets["${device.id}"][sessId] = cmdEncap
+    //Calculate supervisionCheck delay based on how many cached packets
+    Integer packetsCount = supervisedPackets?."${device.id}"?.size()
+    Integer delayTotal = (packetsCount * 500) + 2000
+    runInMillis(delayTotal, supervisionCheck, [data:1])
+    //Send back secured command
+    return secureCmd(cmdEncap)
+  } else {
+    //If supervision disabled just multichannel and secure
+    return secureCmd(cmd)
+  }
+}
+
+Short getSessionId() {
+  Short sessId = sessionIDs["${device.id}"] ?: state.lastSupervision ?: 0
+  sessId = (sessId + 1) % 64  // Will always will return between 0-63
+  state.lastSupervision = sessId
+  sessionIDs["${device.id}"] = sessId
+  return sessId
+}
+
+void supervisionCheck(Integer num) {
+  Integer packetsCount = supervisedPackets?."${device.id}"?.size()
+  logger("debug", "Supervision Check #${num} - Packet Count: ${packetsCount}")
+  if (packetsCount > 0 ) {
+    List<String> cmds = []
+    supervisedPackets["${device.id}"].each { sid, cmd ->
+      logger("warn",  "Re-Sending Supervised Session: ${sid} (Retry #${num})")
+      cmds << secureCmd(cmd)
+    }
+    sendCommands(cmds)
+    if (num >= 3) { //Clear after this many attempts
+      logger("warn",  "Supervision MAX RETIES (${num}) Reached")
+      supervisedPackets["${device.id}"].clear()
+    } else { //Otherwise keep trying
+      Integer delayTotal = (packetsCount * 500) + 2000
+      runInMillis(delayTotal, supervisionCheck, [data:num+1])
+    }
+  }
+}
+
