@@ -478,7 +478,7 @@ private logger(String level, String msg) {
 
 //These send commands to the device either a list or a single command
 void sendCommands(List<String> cmds, Long delay=200) {
-  logger("debug", "sendCommands Commands($commands), delay ($delay)")
+  logger("debug", "sendCommands Commands($cmds), delay ($delay)")
   //Calculate supervisionCheck delay based on how many commands
   Integer packetsCount = supervisedPackets?."${device.id}"?.size()
   if (packetsCount > 0) {
