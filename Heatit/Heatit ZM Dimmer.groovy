@@ -27,10 +27,11 @@
  *	CHANGELOG:
  *    V1.1 : Fixed paramter 14 with size of 2. Added button functions for S1 and S2 when in scene controller mode.
  *    V1.2 : Added supervisedEncap to handle S2 retransmissions properly. powerHigh/Low reset when running resetPower.
+ *    V1.3 : Small change for powerHigh/Low. Added DoubleTapableButton capability. Minor fixes.
  */
 import groovy.transform.Field
 
-@Field String VERSION = "1.2"
+@Field String VERSION = "1.3"
 
 metadata {
   definition (name: "Heatit ZM Dimmer", namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/Heatit/Heatit%20ZM%20Dimmer.groovy") {
@@ -43,12 +44,13 @@ metadata {
     capability "PushableButton"
     capability "HoldableButton"
     capability "ReleasableButton"
+    capability "DoubleTapableButton"
     capability "Configuration"
     capability "Refresh"
 
     attribute "powerHigh", "number"
     attribute "powerLow", "number"
-	  attribute "overloadProtection", "number"
+    attribute "overloadProtection", "number"
 
     command "resetPower" //command to issue Meter Reset commands to reset accumulated power measurements
 
@@ -111,8 +113,6 @@ void logsOff(){
 
 void installed() {
   log.info "installed(${VERSION})"
-  sendEventWrapper(name:"powerHigh", value: -1, descriptionText:"init powerHigh")
-  sendEventWrapper(name:"powerLow", value: -1, descriptionText:"init powerLow")
 }
 
 void updated() {
@@ -131,7 +131,7 @@ void refresh() {
     secureCmd(zwave.meterV5.meterGet(scale: 0x02)),
     secureCmd(zwave.switchMultilevelV4.switchMultilevelGet()),
     secureCmd(zwave.notificationV8.notificationGet(notificationType: hubitat.zwave.commands.notificationv8.NotificationGet.NOTIFICATION_TYPE_POWER_MANAGEMENT))
-  ], 500)
+  ], 1000)
 }
 
 /**
@@ -153,7 +153,7 @@ void configure() {
     cmds.add(secureCmd(zwave.manufacturerSpecificV2.manufacturerSpecificGet()))
   }
   runIn (cmds.size() * 2, refresh)
-  sendCommands(cmds, 500)
+  sendCommands(cmds, 1000)
 }
 
 private List<String> configCmd(parameterNumber, size, Boolean boolConfigurationValue) {
@@ -199,6 +199,7 @@ void on() {
   logger("debug", "on()")
   sendCommands(supervisionEncap(zwave.basicV1.basicSet(value: 0xFF)))
 }
+
 void off() {
   logger("debug", "off()")
   sendCommands(supervisionEncap(zwave.basicV1.basicSet(value: 0x00)))
@@ -235,10 +236,41 @@ void resetPower() {
   logger("debug", "resetPower()")
   runIn (10, refresh)
   sendCommands(supervisionEncap(zwave.meterV2.meterReset()))
-  sendEventWrapper(name:"powerHigh", value: -1, descriptionText:"reset powerHigh")
-  sendEventWrapper(name:"powerLow", value: -1, descriptionText:"reset powerLow")
+  device.deleteCurrentState("powerHigh")
+  device.deleteCurrentState("powerLow")
 }
 
+void delayHold(button){
+  sendButtonEvent("held", button, "physical")
+}
+
+void push(button){
+  sendButtonEvent("pushed", button, "digital")
+}
+
+void hold(button){
+  sendButtonEvent("held", button, "digital")
+}
+
+void release(button){
+  sendButtonEvent("released", button, "digital")
+}
+
+void doubleTap(button){
+  sendButtonEvent("doubleTapped", button, "digital")
+}
+
+void sendButtonEvent(action, button, type){
+  if (button == 1 || button == 2) {
+    sendEventWrapper(name:action, value:button, descriptionText:"button ${button} was ${action} [${type}]", isStateChange:true, type:type)
+  } else {
+    logger("warn", "button number must be one or two.")
+  }	  
+}
+
+/**
+* Incomming zwave event handlers.
+*/
 void parse(String description) {
   logger("debug", "parse() - description: ${description.inspect()}")
   hubitat.zwave.Command cmd = zwave.parse(description, CMD_CLASS_VERS)
@@ -295,7 +327,7 @@ void zwaveEvent(hubitat.zwave.commands.switchmultilevelv4.SwitchMultilevelReport
   sendEventWrapper(name:"level", value: cmd.value, unit:"%", descriptionText:"dimmed to ${cmd.value==255 ? 100 : cmd.value}%")
 }
 
-void zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd) {
+void zwaveEvent(hubitat.zwave.commands.meterv5.MeterReport cmd) {
   logger("trace", "zwaveEvent(MeterReport) - cmd: ${cmd.inspect()}")
   switch(cmd.scale){
     case 0x00:
@@ -304,14 +336,12 @@ void zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd) {
     case 0x02:
 	  def val = cmd.scaledMeterValue
       sendEventWrapper(name:"power", value: val, unit:"W", descriptionText:"consumes ${cmd.scaledMeterValue} W")
-      // Update powerHigh/Low values when within expected ranges
+      // Update powerHigh/Low values when wihtin expected ranges
       if (val >= 0 && val <= 300) {
         def valLow = device.currentValue("powerLow")
         def valHigh = device.currentValue("powerHigh")
-//        if (valLow == null) sendEventWrapper(name:"powerLow", value: -1)
-//	      if (valHigh == null) sendEventWrapper(name:"powerHigh", value: -1)
-        if (val > valHigh || valHigh == -1) sendEventWrapper(name:"powerHigh", value: val)
-        if (val < valLow || valLow == -1) sendEventWrapper(name:"powerLow", value: val)
+        if (val > valHigh || valHigh == null) sendEventWrapper(name:"powerHigh", value: val)
+        if (val < valLow || valLow == null) sendEventWrapper(name:"powerLow", value: val)
       }
       break;
     default:
@@ -319,16 +349,11 @@ void zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd) {
     }    
 }
 
-void zwaveEvent(hubitat.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd) {
-  logger("trace", "zwaveEvent(SwitchBinaryReport) - cmd: ${cmd.inspect()}")
-  sendEventWrapper(name:"switch", value: cmd.value ? "on" : "off")
-}
-
-void zwaveEvent(hubitat.zwave.commands.configurationv2.ConfigurationReport cmd){
+void zwaveEvent(hubitat.zwave.commands.configurationv4.ConfigurationReport cmd){
   logger("trace", "zwaveEvent(ConfigurationReport) - cmd: ${cmd.inspect()}. No action.")
 }
 
-void zwaveEvent(hubitat.zwave.commands.basicv1.BasicReport cmd){
+void zwaveEvent(hubitat.zwave.commands.basicv2.BasicReport cmd){
   logger("trace", "zwaveEvent(BasicReport) - cmd: ${cmd.inspect()}. No action.")
 }
 
@@ -415,34 +440,6 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionReport cmd) {
       if (supervisedPackets["${device.id}"][cmd.sessionID] != null) { supervisedPackets["${device.id}"].remove(cmd.sessionID) }
       break
   }
-}
-
-void delayHold(button){
-  sendButtonEvent("held", button, "physical")
-}
-
-void push(button){
-  sendButtonEvent("pushed", button, "digital")
-}
-
-void hold(button){
-  sendButtonEvent("held", button, "digital")
-}
-
-void release(button){
-  sendButtonEvent("released", button, "digital")
-}
-
-void doubleTap(button){
-  sendButtonEvent("doubleTapped", button, "digital")
-}
-
-void sendButtonEvent(action, button, type){
-  if (button == 1 || button == 2) {
-    sendEventWrapper(name:action, value:button, descriptionText:"button ${button} was ${action} [${type}]", isStateChange:true, type:type)
-  } else {
-    logger("warn", "button number must be one or two.")
-  }	  
 }
 
 /**
