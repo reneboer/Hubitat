@@ -1,6 +1,6 @@
 /**
  *  Heatit ZM Dimmer Z-Wave 800 Driver for Hubitat
- *  Date: 16.11.2023
+ *  Date: 7.12.2023
  *	Author: Rene Boer
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -28,10 +28,11 @@
  *    V1.1 : Fixed paramter 14 with size of 2. Added button functions for S1 and S2 when in scene controller mode.
  *    V1.2 : Added supervisedEncap to handle S2 retransmissions properly. powerHigh/Low reset when running resetPower.
  *    V1.3 : Small change for powerHigh/Low. Added DoubleTapableButton capability. Minor fixes.
+ *    V1.4 : Current device parameters will be populated on install or updated on refresh.
  */
 import groovy.transform.Field
 
-@Field String VERSION = "1.3"
+@Field String VERSION = "1.4"
 
 metadata {
   definition (name: "Heatit ZM Dimmer", namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/Heatit/Heatit%20ZM%20Dimmer.groovy") {
@@ -113,6 +114,7 @@ void logsOff(){
 
 void installed() {
   log.info "installed(${VERSION})"
+  runIn (10, refresh)  // Get current device config after installed.
 }
 
 void updated() {
@@ -121,22 +123,22 @@ void updated() {
   log.warn "description logging is: ${txtEnable == true}"
   unschedule()
   if (logEnable) runIn(86400, logsOff)
-//  runIn (5, configure)
 }
 
 void refresh() {
   logger "info", "refresh()"
-  sendCommands([
+  List<hubitat.zwave.Command> cmds=[
     secureCmd(zwave.meterV5.meterGet(scale: 0x00)),
     secureCmd(zwave.meterV5.meterGet(scale: 0x02)),
     secureCmd(zwave.switchMultilevelV4.switchMultilevelGet()),
     secureCmd(zwave.notificationV8.notificationGet(notificationType: hubitat.zwave.commands.notificationv8.NotificationGet.NOTIFICATION_TYPE_POWER_MANAGEMENT))
-  ], 1000)
+  ]
+  configParams.each { param, data ->
+    cmds.add(secureCmd(zwave.configurationV4.configurationGet(parameterNumber: param.toInteger())))
+  }
+  sendCommands(cmds, 500)
 }
 
-/**
- * Configuration capability command handler.
-*/
 void configure() {
   logger("debug", "configure()")
 
@@ -158,8 +160,8 @@ void configure() {
 
 private List<String> configCmd(parameterNumber, size, Boolean boolConfigurationValue) {
   return [
-    supervisionEncap(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: boolConfigurationValue ? 1 : 0)),
-    secureCmd(zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger()))
+    supervisionEncap(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: boolConfigurationValue ? 1 : 0))//,
+//    secureCmd(zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger()))
   ]
 }
 
@@ -190,8 +192,8 @@ private List<String> configCmd(parameterNumber, size, value) {
       break
   }
   return [
-     supervisionEncap(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), configurationValue: confValue)), 
-     secureCmd(zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger()))
+     supervisionEncap(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), configurationValue: confValue))//, 
+//     secureCmd(zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger()))
   ]
 }
 
@@ -351,6 +353,27 @@ void zwaveEvent(hubitat.zwave.commands.meterv5.MeterReport cmd) {
 
 void zwaveEvent(hubitat.zwave.commands.configurationv4.ConfigurationReport cmd){
   logger("trace", "zwaveEvent(ConfigurationReport) - cmd: ${cmd.inspect()}. No action.")
+  def newVal = cmd.scaledConfigurationValue.toInteger()
+  Map param = configParams[cmd.parameterNumber.toInteger()]
+  if (param) {
+    def curVal
+    try {
+      curVal = device.getSetting(param.input.name).toInteger()
+    }catch(Exception ex) {
+       logger ("warn", "Undefined parameter ${curVal}.")
+       curVal = null
+    }
+    Long sizeFactor = Math.pow(256,cmd.size).round()
+	  if (newVal < 0) { newVal += sizeFactor }
+    if (curVal != newVal) {
+      if (param.input.type == "enum") { newVal = newVal.toString()}
+      if (param.input.type == "bool") { newVal = newVal == 0 ? "false": "true"}
+      device.updateSetting(param.input.name, [value: newVal, type: param.input.type])
+      logger("debug", "Updating device parameter setting ${cmd.parameterNumber} from ${curVal} to ${newVal}.")
+    }
+  } else {
+    logger ("warn", "Unsupported parameter ${cmd.parameterNumber}.")
+  }
 }
 
 void zwaveEvent(hubitat.zwave.commands.basicv2.BasicReport cmd){
@@ -392,7 +415,7 @@ void zwaveEvent(hubitat.zwave.commands.notificationv8.NotificationReport cmd) {
 		map.value = 1
         break
       default:
-        if (cmd.event) log.warn "Unhandled power notifcation event: ${cmd.event}"
+        if (cmd.event) logger ("warn", "Unhandled power notifcation event: ${cmd.event}")
         return
     }
     sendEventWrapper(map)
