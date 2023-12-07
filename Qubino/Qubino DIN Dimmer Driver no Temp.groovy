@@ -50,7 +50,7 @@ import groovy.transform.Field
 @Field String VERSION = "1.4"
 
 metadata {
-  definition (name: "Qubino DIN Dimmer no Temp", namespace: "reneboer", author: "Rene Boer", importUrl: "https:https://github.com/reneboer/Hubitat/tree/main/Qubino") {
+  definition (name: "Qubino DIN Dimmer no Temp", namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/Qubino/Qubino%20DIN%20Dimmer%20Driver%20no%20Temp.groovy") {
     capability "Actuator"
     capability "Switch"
     capability "Switch Level"
