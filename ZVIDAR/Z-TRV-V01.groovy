@@ -1,6 +1,6 @@
 /**
  *  ZVIDAR Z-TRV-V01 Thermostat Radiotor Valve Driver for Hubitat
- *  Date: 16.11.2023
+ *  Date: 7.12.2023
  *	Author: Rene Boer
  *  Copyright (C) Rene Boer
  *
@@ -20,12 +20,14 @@
  *	CHANGELOG:
  *    V1.1 : Numerous small fixes. Removed running Configuration from update. User needsto press Config seperately.
  *    V1.2 : Added supervisedEncap to handle S2 retransmissions properly.
+ *    V1.3 : Added setThermostatMode with String parameter for Alexa support. Minor changes.
+ *    V1.4 : Current device parameters will be populated on install or updated on refresh.
  *
  */
 
 import groovy.transform.Field
 
-@Field String VERSION = "1.2"
+@Field String VERSION = "1.4"
 
 metadata {
   definition (name: "ZVIDAR Z-TRV-V01", namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/ZVIDAR/Z-TRV-V01.groovy") {
@@ -99,6 +101,7 @@ void logsOff(){
 
 void installed() {
   log.info "installed(${VERSION})"
+  runIn (10, refresh)  // Get current device config after installed.
 }
 
 void updated() {
@@ -118,7 +121,10 @@ void refresh() {
   cmds.add(secureCmd(zwave.switchMultilevelV4.switchMultilevelGet()))
   cmds.add(secureCmd(zwave.thermostatModeV2.thermostatModeGet()))
   cmds.add(secureCmd(zwave.batteryV1.batteryGet()))
-  sendCommands(cmds)
+  configParams.each { param, data ->
+    cmds.add(secureCmd(zwave.configurationV4.configurationGet(parameterNumber: param.toInteger())))
+  }
+  sendCommands(cmds, 500)
 }
 
 void configure() {
@@ -138,15 +144,14 @@ void configure() {
     cmds.add(secureCmd(zwave.versionV2.versionGet()))
     cmds.add(secureCmd(zwave.manufacturerSpecificV2.manufacturerSpecificGet()))
   }
-  runIn (cmds.size(), refresh)
-  sendCommands(cmds)
+  runIn (cmds.size() * 2, refresh)
+  sendCommands(cmds, 1000)
 }
 
 List<String> configCmd(parameterNumber, size, Boolean boolConfigurationValue) {
   int intval=boolConfigurationValue ? 1 : 0
   return [
-	supervisionEncap(zwave.configurationV1.configurationSet(parameterNumber:  parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: intval)),
-    secureCmd(zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger()))
+	  supervisionEncap(zwave.configurationV1.configurationSet(parameterNumber:  parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: intval))
   ]
 }
 
@@ -160,7 +165,6 @@ List<String> configCmd(parameterNumber, size, scaledConfigurationValue) {
   } else {
     cmds.add(supervisionEncap(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: intval)))
   }
-  cmds.add(secureCmd(zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger())))
   return cmds
 }
 
@@ -296,6 +300,27 @@ void zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.ManufacturerSpecif
 // No actions on config report.
 void zwaveEvent(hubitat.zwave.commands.configurationv2.ConfigurationReport cmd) {
   logger("trace", "zwaveEvent(ConfigurationReport) - cmd: ${cmd.inspect()}")
+  def newVal = cmd.scaledConfigurationValue.toInteger()
+  Map param = configParams[cmd.parameterNumber.toInteger()]
+  if (param) {
+    def curVal
+    try {
+      curVal = device.getSetting(param.input.name).toInteger()
+    }catch(Exception ex) {
+       logger ("warn", "Undefined parameter ${curVal}.")
+       curVal = null
+    }
+    Long sizeFactor = Math.pow(256,cmd.size).round()
+	  if (newVal < 0) { newVal += sizeFactor }
+    if (curVal != newVal) {
+      if (param.input.type == "enum") { newVal = newVal.toString()}
+      if (param.input.type == "bool") { newVal = newVal == 0 ? "false": "true"}
+      device.updateSetting(param.input.name, [value: newVal, type: param.input.type])
+      logger("debug", "Updating device parameter setting ${cmd.parameterNumber} from ${curVal} to ${newVal}.")
+    }
+  } else {
+    logger ("warn", "Unsupported parameter ${cmd.parameterNumber}.")
+  }
 }
 
 // Report on value percent open. If open then we are heating.
@@ -358,7 +383,6 @@ void zwaveEvent(hubitat.zwave.commands.thermostatsetpointv2.ThermostatSetpointRe
       logger("warn", "Unknown setpointType ${cmd.setpointType}")
   }
 }
-
 
 // Versions report
 void zwaveEvent(hubitat.zwave.commands.versionv3.VersionReport cmd) {
@@ -428,70 +452,78 @@ void zwaveEvent(hubitat.zwave.commands.securityv1.NetworkKeyVerify cmd) {
 * Device command functions.
 */
 // When setting the setpoint, assume we want frost protection only off.
-List<String> setHeatingSetpoint(Double degrees) {
+void setHeatingSetpoint(Double degrees) {
   logger("debug", "setHeatingSetpoint() - degrees: ${degrees}")
   sendCommands([
     supervisionEncap(zwave.thermostatSetpointV3.thermostatSetpointSet(setpointType: hubitat.zwave.commands.thermostatsetpointv3.ThermostatSetpointSet.SETPOINT_TYPE_HEATING_1, scale:0, precision: 1, scaledValue: degrees)),
     supervisionEncap(zwave.thermostatModeV3.thermostatModeSet(mode: hubitat.zwave.commands.thermostatmodev3.ThermostatModeSet.MODE_HEAT)),
     secureCmd(zwave.thermostatSetpointV3.thermostatSetpointGet(setpointType: hubitat.zwave.commands.thermostatsetpointv3.ThermostatSetpointSet.SETPOINT_TYPE_HEATING_1)),
     secureCmd(zwave.thermostatModeV3.thermostatModeGet())
-  ])
+  ], 1000)
 }
-
-List<String> on() {
+void on() {
   logger("debug", "Command on()")
   setThermostatMode(hubitat.zwave.commands.thermostatmodev3.ThermostatModeSet.MODE_HEAT)
 }
 
-List<String> heat() {
+void heat() {
   logger("debug", "Command heat()")
   setThermostatMode(hubitat.zwave.commands.thermostatmodev3.ThermostatModeSet.MODE_HEAT)
 }
 
-List<String> off() {
+void off() {
   logger("debug", "Command off()")
   setThermostatMode(hubitat.zwave.commands.thermostatmodev3.ThermostatModeSet.MODE_OFF)
 }
 
 // Mode 0x1F is to put TRV in direct Valve control mode. Not supported in this driver.
-List<String> setThermostatMode(Short mode) {
-  logger("info", "setThermostatMode ${mode}")
+void setThermostatMode(Short mode) {
+  logger("debug", "setThermostatMode ${mode}")
   sendCommands([
       supervisionEncap(zwave.thermostatModeV3.thermostatModeSet(mode: mode)),
       secureCmd(zwave.thermostatModeV3.thermostatModeGet())
-    ])
+    ], 1000)
+}
+
+// Mode can be a string for example from Alexa.
+void setThermostatMode(String mode) {
+  logger("debug", "setThermostatMode ${mode}")
+  sendCommands([
+      supervisionEncap(zwave.thermostatModeV3.thermostatModeSet(mode: mode == "heat" ? 1 :0)),
+      secureCmd(zwave.thermostatModeV3.thermostatModeGet())
+    ], 1000)
 }
 
 void emergencyHeat() {
-  logger("info", "emergencyHeat() - Unsupported command for TRV")
+  logger("debug", "emergencyHeat() - Unsupported command for TRV")
 }
 
 void auto() {
-  logger("info", "auto() - Unsupported command for TRV")
+  logger("debug", "auto() - Unsupported command for TRV")
 }
  
 void cool() {
-  logger("info", "cool() - Unsupported command for TRV")
+  logger("debug", "cool() - Unsupported command for TRV")
 }
 
 void fanAuto() {
-  logger("info", "fanAuto() - Unsupported command for TRV")
+  logger("debug", "fanAuto() - Unsupported command for TRV")
 }
 
 void fanCirculate() {
-  logger("info", "fanCirculate() - Unsupported command for TRV")
+  logger("debug", "fanCirculate() - Unsupported command for TRV")
 }
 
 void fanOn() {
-  logger("info", "fanOn() - Unsupported command for TRV")
+  logger("debug", "fanOn() - Unsupported command for TRV")
 }
 
 void setCoolingSetpoint(Double degrees) {
-  logger("info", "setCoolingSetpoint() - Unsupported command for TRV")
+  logger("debug", "setCoolingSetpoint() - Unsupported command for TRV")
 }
 
 void setThermostatFanMode(String mode) {
-  logger("info", "setThermostatFanMode() - Unsupported command for TRV")
+  logger("debug", "setThermostatFanMode() - Unsupported command for TRV")
 }
 
 private void setDeviceLimits() {
@@ -504,9 +536,7 @@ private void setDeviceLimits() {
   }
 }
 
-/*
-* return the Double value of an attribute
-*/
+// return the Double value of an attribute
 private currentDouble(attributeName) {
 	if(device.currentValue(attributeName)) {
 		return device.currentValue(attributeName).doubleValue()
@@ -516,9 +546,7 @@ private currentDouble(attributeName) {
 	}
 }
 
-/**
-* Wrapper for sendEvent to limit duplicate events and support logging
-*/
+// Wrapper for sendEvent to limit duplicate events and support logging
 private void sendEventWrapper(Map prop) {
   String cv = device.currentValue(prop.name)
   Boolean isStateChange = (cv?.toString() != prop.value?.toString()) ? true : false
@@ -532,10 +560,7 @@ private void sendEventWrapper(Map prop) {
   }
 }
 
-/**
- * @param level; Level to log at. Alwasy log errors and warnings.
- * @param msg; Message to log
- */
+// Log at Level. Alwasy log errors and warnings.
 private logger(String level, String msg) {
   if (level == "error" || level == "warn") {
     log."${level}" "${device.displayName} ${msg}"
@@ -559,6 +584,10 @@ void sendCommands(List<String> cmds, Long delay=200) {
    }
    //Send the commands
   sendHubCommand(new hubitat.device.HubMultiAction(delayBetween(cmds, delay), hubitat.device.Protocol.ZWAVE))
+}
+
+List<String> commands(List<String> cmds, Long delay = 300) {
+    return delayBetween(cmds.collect { zwaveSecureEncap(it) }, delay)
 }
 
 //Single Command
