@@ -122,7 +122,7 @@ void updated() {
   log.warn "debug logging is: ${logEnable == true}"
   log.warn "description logging is: ${txtEnable == true}"
   unschedule()
-  if (logEnable) runIn(86400, logsOff)
+  if (logEnable) runIn(3600, logsOff)
 }
 
 void refresh() {
@@ -356,7 +356,8 @@ void zwaveEvent(hubitat.zwave.commands.configurationv4.ConfigurationReport cmd){
   def newVal = cmd.scaledConfigurationValue.toInteger()
   Map param = configParams[cmd.parameterNumber.toInteger()]
   if (param) {
-    def curVal
+    def curVal = device.getSetting(param.input.name)
+    if (param.input.type == "bool") { curVal = curVal == "false" ? 0 : 1}
     try {
       curVal = device.getSetting(param.input.name).toInteger()
     }catch(Exception ex) {
@@ -522,7 +523,7 @@ String secureCmd(String cmd) {
 }
 String secureCmd(hubitat.zwave.Command cmd) {
   logger("debug", "secureCmd Command(${cmd})")
-  return zwaveSecureEncap(cmd)
+  return zwaveSecureEncap(cmd.format())
 }
 
 // ====== Supervision Encapsulate START ====== 
