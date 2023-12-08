@@ -109,7 +109,7 @@ void updated() {
   log.warn "debug logging is: ${logEnable == true}"
   log.warn "description logging is: ${txtEnable == true}"
   unschedule()
-  if (logEnable) runIn(86400, logsOff)
+  if (logEnable) runIn(3600, logsOff)
 //  runIn (5, configure)
 }
 
@@ -145,7 +145,7 @@ void configure() {
     cmds.add(secureCmd(zwave.manufacturerSpecificV2.manufacturerSpecificGet()))
   }
   runIn (cmds.size() * 2, refresh)
-  sendCommands(cmds, 1000)
+  sendCommands(cmds, 500)
 }
 
 List<String> configCmd(parameterNumber, size, Boolean boolConfigurationValue) {
@@ -303,7 +303,8 @@ void zwaveEvent(hubitat.zwave.commands.configurationv2.ConfigurationReport cmd) 
   def newVal = cmd.scaledConfigurationValue.toInteger()
   Map param = configParams[cmd.parameterNumber.toInteger()]
   if (param) {
-    def curVal
+    def curVal = device.getSetting(param.input.name)
+    if (param.input.type == "bool") { curVal = curVal == "false" ? 0 : 1}
     try {
       curVal = device.getSetting(param.input.name).toInteger()
     }catch(Exception ex) {
@@ -586,10 +587,6 @@ void sendCommands(List<String> cmds, Long delay=200) {
   sendHubCommand(new hubitat.device.HubMultiAction(delayBetween(cmds, delay), hubitat.device.Protocol.ZWAVE))
 }
 
-List<String> commands(List<String> cmds, Long delay = 300) {
-    return delayBetween(cmds.collect { zwaveSecureEncap(it) }, delay)
-}
-
 //Single Command
 void sendCommands(String cmd) {
   sendHubCommand(new hubitat.device.HubAction(cmd, hubitat.device.Protocol.ZWAVE))
@@ -602,7 +599,7 @@ String secureCmd(String cmd) {
 }
 String secureCmd(hubitat.zwave.Command cmd) {
   logger("debug", "secureCmd Command(${cmd})")
-  return zwaveSecureEncap(cmd)
+  return zwaveSecureEncap(cmd.format())
 }
 
 // ====== Supervision Encapsulate START ====== 
@@ -657,4 +654,3 @@ void supervisionCheck(Integer num) {
     }
   }
 }
-
