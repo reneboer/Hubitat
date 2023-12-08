@@ -7,4 +7,4 @@ The Basic Plus Z-Wave tool is a version of Hubitat's Basic Z-Wave tool (https://
 
 To add an association, enter the groupingIdentifier number and the nodeId of device(s) to set the association with. You must use the decimal device numbers (not Hex). Multiple numbers are comma separated (1,2,3). Leave the nodeId field empty to remove the associations for the group.
 
-Note that for battery operated devices you must first wake up the device, and then hit setAssociation quickly.
+Note that for battery operated devices you must wake up the device so the commands can be send.
