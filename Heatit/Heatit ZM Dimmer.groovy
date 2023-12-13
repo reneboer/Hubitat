@@ -1,6 +1,6 @@
 /**
  *  Heatit ZM Dimmer Z-Wave 800 Driver for Hubitat
- *  Date: 7.12.2023
+ *  Date: 13.12.2023
  *	Author: Rene Boer
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -29,10 +29,11 @@
  *    V1.2 : Added supervisedEncap to handle S2 retransmissions properly. powerHigh/Low reset when running resetPower.
  *    V1.3 : Small change for powerHigh/Low. Added DoubleTapableButton capability. Minor fixes.
  *    V1.4 : Current device parameters will be populated on install or updated on refresh.
+ *    V1.5 : Fix for bool type paramaters.
  */
 import groovy.transform.Field
 
-@Field String VERSION = "1.4"
+@Field String VERSION = "1.5"
 
 metadata {
   definition (name: "Heatit ZM Dimmer", namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/Heatit/Heatit%20ZM%20Dimmer.groovy") {
@@ -359,7 +360,7 @@ void zwaveEvent(hubitat.zwave.commands.configurationv4.ConfigurationReport cmd){
     def curVal = device.getSetting(param.input.name)
     if (param.input.type == "bool") { curVal = curVal == "false" ? 0 : 1}
     try {
-      curVal = device.getSetting(param.input.name).toInteger()
+      curVal = curVal.toInteger()
     }catch(Exception ex) {
        logger ("warn", "Undefined parameter ${curVal}.")
        curVal = null
