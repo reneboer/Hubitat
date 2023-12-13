@@ -29,7 +29,7 @@
  *    V1.2 : Added supervisedEncap to handle S2 retransmissions properly. powerHigh/Low reset when running resetPower.
  *    V1.3 : Small change for powerHigh/Low. Added DoubleTapableButton capability. Minor fixes.
  *    V1.4 : Current device parameters will be populated on install or updated on refresh.
- *    V1.5 : Fix for bool type paramaters.
+ *    V1.5 : Fix for bool type parameters.
  */
 import groovy.transform.Field
 
@@ -358,7 +358,7 @@ void zwaveEvent(hubitat.zwave.commands.configurationv4.ConfigurationReport cmd){
   Map param = configParams[cmd.parameterNumber.toInteger()]
   if (param) {
     def curVal = device.getSetting(param.input.name)
-    if (param.input.type == "bool") { curVal = curVal == "false" ? 0 : 1}
+    if (param.input.type == "bool") { curVal = curVal == false ? 0 : 1}
     try {
       curVal = curVal.toInteger()
     }catch(Exception ex) {
@@ -369,7 +369,7 @@ void zwaveEvent(hubitat.zwave.commands.configurationv4.ConfigurationReport cmd){
 	  if (newVal < 0) { newVal += sizeFactor }
     if (curVal != newVal) {
       if (param.input.type == "enum") { newVal = newVal.toString()}
-      if (param.input.type == "bool") { newVal = newVal == 0 ? "false": "true"}
+      if (param.input.type == "bool") { newVal = newVal == 0 ? false: true}
       device.updateSetting(param.input.name, [value: newVal, type: param.input.type])
       logger("debug", "Updating device parameter setting ${cmd.parameterNumber} from ${curVal} to ${newVal}.")
     }
