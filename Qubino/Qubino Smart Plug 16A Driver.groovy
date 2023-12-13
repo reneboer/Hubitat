@@ -28,7 +28,7 @@
  *  0.10: Added secure mode support. Some rewrites.
  *  0.11: Added High/Low states
  *  1.0 : Complete rewrite. Added S2 Securyty support.
- *  1.1 : Fix for bool type paramaters.
+ *  1.1 : Fix for bool type parameters.
  */
 import groovy.transform.Field
 
@@ -412,7 +412,7 @@ void zwaveEvent(hubitat.zwave.commands.configurationv1.ConfigurationReport cmd) 
   Map param = configParams[cmd.parameterNumber.toInteger()]
   if (param) {
     def curVal = device.getSetting(param.input.name)
-    if (param.input.type == "bool") { curVal = curVal == "false" ? 0 : 1}
+    if (param.input.type == "bool") { curVal = curVal == false ? 0 : 1}
     try {
       curVal = curVal.toInteger()
     }catch(Exception ex) {
@@ -423,7 +423,7 @@ void zwaveEvent(hubitat.zwave.commands.configurationv1.ConfigurationReport cmd) 
 	  if (newVal < 0) { newVal += sizeFactor }
     if (curVal != newVal) {
       if (param.input.type == "enum") { newVal = newVal.toString()}
-      if (param.input.type == "bool") { newVal = newVal == 0 ? "false": "true"}
+      if (param.input.type == "bool") { newVal = newVal == 0 ? false: true}
       device.updateSetting(param.input.name, [value: newVal, type: param.input.type])
       logger("debug", "Updating device parameter setting ${cmd.parameterNumber} from ${curVal} to ${newVal}.")
     }
