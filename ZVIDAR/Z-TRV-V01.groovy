@@ -1,6 +1,6 @@
 /**
  *  ZVIDAR Z-TRV-V01 Thermostat Radiotor Valve Driver for Hubitat
- *  Date: 7.12.2023
+ *  Date: 13.12.2023
  *	Author: Rene Boer
  *  Copyright (C) Rene Boer
  *
@@ -22,12 +22,12 @@
  *    V1.2 : Added supervisedEncap to handle S2 retransmissions properly.
  *    V1.3 : Added setThermostatMode with String parameter for Alexa support. Minor changes.
  *    V1.4 : Current device parameters will be populated on install or updated on refresh.
- *
+ *    V1.5 : Fix for bool type parameters.
  */
 
 import groovy.transform.Field
 
-@Field String VERSION = "1.4"
+@Field String VERSION = "1.5"
 
 metadata {
   definition (name: "ZVIDAR Z-TRV-V01", namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/ZVIDAR/Z-TRV-V01.groovy") {
@@ -306,7 +306,7 @@ void zwaveEvent(hubitat.zwave.commands.configurationv2.ConfigurationReport cmd) 
     def curVal = device.getSetting(param.input.name)
     if (param.input.type == "bool") { curVal = curVal == "false" ? 0 : 1}
     try {
-      curVal = device.getSetting(param.input.name).toInteger()
+      curVal = curVal.toInteger()
     }catch(Exception ex) {
        logger ("warn", "Undefined parameter ${curVal}.")
        curVal = null
