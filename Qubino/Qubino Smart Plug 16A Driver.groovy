@@ -1,8 +1,8 @@
 /**
  *  Qubino Smart Plug 16A ZMNHYDx
  *  Device Handler
- *  Version 1.0
- *  Date: 07.12.2023
+ *  Version 1.1
+ *  Date: 13.12.2023
  *  Author: Rene Boer
  *  Copyright , none free to use
  *
@@ -28,10 +28,11 @@
  *  0.10: Added secure mode support. Some rewrites.
  *  0.11: Added High/Low states
  *  1.0 : Complete rewrite. Added S2 Securyty support.
+ *  1.1 : Fix for bool type paramaters.
  */
 import groovy.transform.Field
 
-@Field String VERSION = "1.0"
+@Field String VERSION = "1.1"
 
 metadata {
   definition(name: 'Qubino Smart Plug 16A', namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/Qubino/Qubino%20Smart%20Plug%2016A%20Driver.groovy") {
@@ -413,7 +414,7 @@ void zwaveEvent(hubitat.zwave.commands.configurationv1.ConfigurationReport cmd) 
     def curVal = device.getSetting(param.input.name)
     if (param.input.type == "bool") { curVal = curVal == "false" ? 0 : 1}
     try {
-      curVal = device.getSetting(param.input.name).toInteger()
+      curVal = curVal.toInteger()
     }catch(Exception ex) {
        logger ("warn", "Undefined parameter ${curVal}.")
        curVal = null

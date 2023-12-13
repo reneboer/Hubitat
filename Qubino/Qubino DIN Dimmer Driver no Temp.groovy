@@ -1,7 +1,7 @@
 /**
  *  Qubino DIN Dimmer no Temp
  *	Device Handler 
- *  Date: 7.12.2023
+ *  Date: 13.12.2023
  *	Author: Kristjan Jam&scaron;ek (Kjamsek), Goap d.o.o.
  *  Post V1.0 updates: Rene Boer
  *  Copyright 2017 Kristjan Jam&scaron;ek
@@ -44,10 +44,11 @@
  *  1.2 : Rewrite now I know more about writing drivers. Removed setting associations.
  *  1.3 : Minor tweak in min/max power reporting
  *  1.4 : Current device parameters will be populated on install or updated on refresh.
+ *  1.5 : Fix for bool type paramaters.
  */
 import groovy.transform.Field
 
-@Field String VERSION = "1.4"
+@Field String VERSION = "1.5"
 
 metadata {
   definition (name: "Qubino DIN Dimmer no Temp", namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/Qubino/Qubino%20DIN%20Dimmer%20Driver%20no%20Temp.groovy") {
@@ -302,7 +303,7 @@ void zwaveEvent(hubitat.zwave.commands.configurationv2.ConfigurationReport cmd){
     def curVal = device.getSetting(param.input.name)
     if (param.input.type == "bool") { curVal = curVal == "false" ? 0 : 1}
     try {
-      curVal = device.getSetting(param.input.name).toInteger()
+      curVal = curVal.toInteger()
     }catch(Exception ex) {
        logger ("warn", "Undefined parameter ${curVal}.")
        curVal = null
