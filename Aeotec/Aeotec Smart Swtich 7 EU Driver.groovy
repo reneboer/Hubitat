@@ -26,7 +26,7 @@ import groovy.transform.Field
 @Field String VERSION = "0.1"
 
 metadata {
-  definition(name: 'Aeotec Smart Switch 7 EU', namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/Aeotec/Aeotec%20Smart%20Switch%207%20EU%20Driver.groovy") {
+  definition(name: 'Aeotec Smart Switch 7 EU', namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/Aeotec/Aeotec%20Smart%20Swtich%207%20EU%20Driver.groovy") {
     capability 'Actuator'
     capability 'Switch'
     capability 'Outlet'
