@@ -1,8 +1,8 @@
 /**
  *  Qubino Smart Plug 16A ZMNHYDx
  *  Device Handler
- *  Version 1.1
- *  Date: 13.12.2023
+ *  Version 1.2
+ *  Date: 27.12.2023
  *  Author: Rene Boer
  *  Copyright , none free to use
  *
@@ -29,15 +29,17 @@
  *  0.11: Added High/Low states
  *  1.0 : Complete rewrite. Added S2 Securyty support.
  *  1.1 : Fix for bool type parameters.
+ *  1.2 : Added outlet capability, fix for Energy reporting.
  */
 import groovy.transform.Field
 
-@Field String VERSION = "1.1"
+@Field String VERSION = "1.2"
 
 metadata {
   definition(name: 'Qubino Smart Plug 16A', namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/Qubino/Qubino%20Smart%20Plug%2016A%20Driver.groovy") {
     capability 'Actuator'
     capability 'Switch'
+    capability 'Outlet'
     capability 'PowerMeter'
     capability 'EnergyMeter'
     capability 'VoltageMeasurement'
@@ -58,7 +60,7 @@ metadata {
     command 'resetPower' //command to issue Meter Reset commands to reset accumulated pwoer measurements
     command 'setAssociation' //command to issue Association Set commands to the modules according to user preferences
 
-    fingerprint mfr:'0159', prod:'0002', deviceId:'0054', inClusters:'0x5E,0x25,0x85,0x59,0x55,0x86,0x72,0x5A,0x70,0x32,0x71,0x73,0x9F,0x6C,0x7A'
+    fingerprint mfr:"0159", prod:"0002", deviceId:"0054", inClusters:"0x5E,0x25,0x85,0x59,0x55,0x86,0x72,0x5A,0x70,0x32,0x71,0x73,0x9F,0x6C,0x7A", deviceJoinName: "Qubino Smart Plug 16A", model:"Smart Plug 16A", manufacturer:"Qubino"
   }
   preferences {
     configParams.each { input it.value.input }
@@ -208,29 +210,6 @@ metadata {
         ],
         parameterSize: 1]
 ]
-
-/*
-* Supported command classes
-*/
-private static Map getCommandClassVersions() {
-    [
-        0x7A: 4, // Firmware Update Md
-        0x6C: 1, // Supervision
-        0x9F: 1, // Command Class SecurityS2
-        0x73: 1, // Powerlevel
-        0x71: 5, // Notification
-        0x32: 4, // Meter
-        0x70: 1, // Configuration
-        0x5A: 1, // Device Reset Locally
-        0x72: 2, // Manufacturer Specific
-        0x86: 2, // Version
-        0x55: 2, // Transport Service
-        0x59: 2, // Association Grp Info
-        0x85: 2, // Association
-        0x25: 2, // Switch Binary
-        0x5E: 2, // Zwaveplus Info
-    ]
-}
 
 //  --------    HANDLE COMMANDS SECTION    --------
 void logsOff(){
@@ -692,13 +671,17 @@ void updateReports(cmd) {
     logger("warn", "Unsupported MeterType. Skipped cmd: ${cmd}")
   }
   if (name) {
-    if (val > minVal && val < maxVal) {
-      sendEventWrapper(name: name, value: val, unit: unit, descriptionText: "${label} ${val} ${unit}")
-      if (name != "energy" && val != 0){
-        createMeterHistoryEvents(name, val, unit, true)
-        createMeterHistoryEvents(name, val, unit, false)
+    if (name != "energy") {
+      if (val > minVal && val < maxVal) {
+        sendEventWrapper(name: name, value: val, unit: unit, descriptionText: "${label} ${val} ${unit}")
+        if (val != 0){
+          createMeterHistoryEvents(name, val, unit, true)
+          createMeterHistoryEvents(name, val, unit, false)
+        }
       }
-    }
+    } else {
+      sendEventWrapper(name: name, value: val, unit: unit, descriptionText: "${label} ${val} ${unit}")
+    }  
   }
 }
 
