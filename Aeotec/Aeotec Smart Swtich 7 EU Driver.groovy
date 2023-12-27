@@ -19,7 +19,6 @@
  *
  *  CHANGELOG:
  *  0.01: First release
- *  1.1 : Fix for bool type parameters.
  */
 import groovy.transform.Field
 
