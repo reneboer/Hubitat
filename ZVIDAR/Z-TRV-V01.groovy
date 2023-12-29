@@ -1,6 +1,6 @@
 /**
  *  ZVIDAR Z-TRV-V01 Thermostat Radiotor Valve Driver for Hubitat
- *  Date: 13.12.2023
+ *  Date: 28.12.2023
  *	Author: Rene Boer
  *  Copyright (C) Rene Boer
  *
@@ -30,7 +30,7 @@ import groovy.transform.Field
 @Field String VERSION = "1.5"
 
 metadata {
-  definition (name: "ZVIDAR Z-TRV-V01", namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/ZVIDAR/Z-TRV-V01.groovy") {
+  definition (name: "ZVIDAR Z-TRV-V01", namespace: "reneboer", author: "Rene Boer", importUrl: "https://raw.githubusercontent.com/reneboer/Hubitat/main/ZVIDAR/Z-TRV-V01.groovy") {
     capability "Actuator"
     capability "Sensor"
     capability "Thermostat"
