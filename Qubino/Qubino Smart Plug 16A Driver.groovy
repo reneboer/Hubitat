@@ -36,7 +36,7 @@ import groovy.transform.Field
 @Field String VERSION = "1.2"
 
 metadata {
-  definition(name: 'Qubino Smart Plug 16A', namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/Qubino/Qubino%20Smart%20Plug%2016A%20Driver.groovy") {
+  definition(name: 'Qubino Smart Plug 16A', namespace: "reneboer", author: "Rene Boer", importUrl: "https://raw.githubusercontent.com/reneboer/Hubitat/main/Qubino/Qubino%20Smart%20Plug%2016A%20Driver.groovy") {
     capability 'Actuator'
     capability 'Switch'
     capability 'Outlet'
