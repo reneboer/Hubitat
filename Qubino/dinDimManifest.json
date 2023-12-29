@@ -1,0 +1,18 @@
+{
+ "packageName":"Qubino DIN Dimmer Drivers",
+ "author":"rboer",
+ "version":"1.5",
+ "minimumHEVersion":"2.3.6",
+ "dateReleased":"2023-12-29",
+ "releaseNotes":"Fix for bool type parameters.",
+ "documentationLink":"https://github.com/reneboer/Hubitat/blob/main/Qubino/README.md",
+ "communityLink":"https://community.hubitat.com/t/release-qubino-dim-dimmer-and-smart-plug-16a-drivers/130698",
+ "drivers": [
+  {
+     "id":"b22ff4fb-3051-4045-8600-580d94041f68",
+     "name":"Qubino DIN Dimmer no Temp",
+     "location":"https://raw.githubusercontent.com/reneboer/Hubitat/main/Qubino/Qubino%20DIN%20Dimmer%20Driver%20no%20Temp.groovy",
+     "required":true
+  }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+ "packageName":"Qubino Smart Plug 16A Driver",
+ "author":"rboer",
+ "version":"1.2",
+ "minimumHEVersion":"2.3.6",
+ "dateReleased":"2023-12-27",
+ "releaseNotes":"Added outlet capability, fix for Energy reporting.",
+ "documentationLink":"https://github.com/reneboer/Hubitat/blob/main/Qubino/README.md",
+ "communityLink":"https://community.hubitat.com/t/release-qubino-dim-dimmer-and-smart-plug-16a-drivers/130698",
+ "drivers": [
+  {
+     "id":"1a666709-6f6d-41f8-9566-5f02700212a9",
+     "name":"Qubino Smart Plug 16A",
+     "location":"https://raw.githubusercontent.com/reneboer/Hubitat/main/Qubino/Qubino%20Smart%20Plug%2016A%20Driver.groovy",
+     "required":true
+  }
+  ]
+}
