@@ -1,0 +1,18 @@
+{
+ "packageName":"Remotec / ZVIDAR Z-Wave Thermostat Radiator Valve Driver",
+ "author":"rboer",
+ "version":"1.5",
+ "minimumHEVersion":"2.3.6.x",
+ "dateReleased":"2023-12-29",
+ "releaseNotes":"Fix for boolean type parameters.",
+ "documentationLink":"https://github.com/reneboer/Hubitat/blob/main/ZVIDAR/README.md",
+ "communityLink":"https://community.hubitat.com/t/release-zvidar-remotec-z-trv-v01-thermostat-radiator-valve-driver-with-secure-s2-support/128067",
+ "drivers": [
+  {
+     "id":"d2651c7e-cd53-40f1-a3ed-d5dee2eaf640",
+     "name":"ZVIDAR Z-TRV-V01",
+     "location":"https://raw.githubusercontent.com/reneboer/Hubitat/main/ZVIDAR/Z-TRV-V01.groovy",
+     "required":true
+  }
+  ]
+}
