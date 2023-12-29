@@ -1,8 +1,8 @@
 /**
  *  Qubino DIN Dimmer no Temp
- *	Device Handler 
+ *  Device Handler 
  *  Date: 13.12.2023
- *	Author: Kristjan Jam&scaron;ek (Kjamsek), Goap d.o.o.
+ *  Author: Kristjan Jam&scaron;ek (Kjamsek), Goap d.o.o.
  *  Post V1.0 updates: Rene Boer
  *  Copyright 2017 Kristjan Jam&scaron;ek
  *
@@ -15,7 +15,6 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *
  * |---------------------------- DEVICE HANDLER FOR QUBINO DIN DIMMER Z-WAVE DEVICE -------------------------------------------------------|  
  *	The handler supports all unsecure functions of the Qubino DIN Dimmer device, except configurable inputs. Configuration parameters and
  *	association groups can be set in the device's preferences screen, but they are applied on the device only after
@@ -25,13 +24,10 @@
  *	states are used. Please use a SmartApp that supports custom attribute monitoring with this device in your rules.
  * |-----------------------------------------------------------------------------------------------------------------------------------------------|
  *
- *
- *	TO-DO:
- * Add powerHigh/Low values agains impossible readings.
- *
- *	CHANGELOG:
- *	0.99: Final release code cleanup and commenting
- *	1.00: Added comments to code for readability
+ *  TO-DO:
+ *  CHANGELOG:
+ *  0.99: Final release code cleanup and commenting
+ *  1.00: Added comments to code for readability
  *  1.01: Removed Temp capability for better alexa intergration.
  *  1.02: Added loggin options. Shortened text for device parameters. Get the manual when updating.
  *  1.03: Added event handler for zwave.commands.switchmultilevelv4.SwitchMultilevelSet
