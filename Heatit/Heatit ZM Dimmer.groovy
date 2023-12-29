@@ -36,7 +36,7 @@ import groovy.transform.Field
 @Field String VERSION = "1.5"
 
 metadata {
-  definition (name: "Heatit ZM Dimmer", namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/Heatit/Heatit%20ZM%20Dimmer.groovy") {
+  definition (name: "Heatit ZM Dimmer", namespace: "reneboer", author: "Rene Boer", importUrl: "https://raw.githubusercontent.com/reneboer/Hubitat/main/Heatit/Heatit%20ZM%20Dimmer.groovy") {
     capability "Actuator"
     capability "Switch"
     capability "Switch Level"
