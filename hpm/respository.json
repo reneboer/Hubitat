@@ -1,0 +1,35 @@
+{
+	"author": "Rene Boer",
+	"gitHubUrl": "https://github.com/reneboer/Hubitat",
+	"packages": [
+		{
+			"name": "Remotec / ZVIDAR Z-Wave Thermostat Radiator Valve Driver",
+			"category": "Integrations",
+      "tags": [ "Climate Control", "ZWave" ],
+			"location": "https://raw.githubusercontent.com/reneboer/Hubitat/main/ZVIDAR/packageManifest.json",
+			"description": "Driver for Z-Wave 800 TVR by ZVIDAR"
+		},
+		{
+			"name": "Qubino DIN Dimmer Driver",
+			"category": "Integrations",
+      "tags": [ "Lights & Switches", "ZWave" ],
+			"location": "https://raw.githubusercontent.com/reneboer/Hubitat/main/Qubino/dinDimManifest.json",
+			"description": "Driver for Z-Wave DIN Dimmer without temp capability by Qubino"
+		},
+		{
+			"name": "Qubino Smart Plug 16A Driver",
+			"category": "Integrations",
+      "tags": [ "Lights & Switches", "ZWave" ],
+			"location": "https://raw.githubusercontent.com/reneboer/Hubitat/main/Qubino/smartPlugManifest.json",
+			"description": "Driver for Z-Wave Smart Plug 16A by Qubino"
+		},
+		{
+			"name": "Heatit ZM Dimmer 250W Driver",
+			"category": "Integrations",
+      "tags": [ "Lights & Switches", "ZWave" ],
+			"location": "https://raw.githubusercontent.com/reneboer/Hubitat/main/ZVIDAR/packageManifest.json",
+			"description": "Driver for ZM Dimmer 250W by Heatit."
+		}
+	]
+	
+}
