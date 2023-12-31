@@ -1,0 +1,18 @@
+{
+ "packageName":"Shelly Wave 1PM Driver",
+ "author":"Rene Boer",
+ "version":"0.1",
+ "minimumHEVersion":"2.3.6",
+ "dateReleased":"2023-12-31",
+ "releaseNotes":"First release.",
+ "documentationLink":"https://github.com/reneboer/Hubitat/blob/main/Shelly/README.md",
+ "communityLink":"https://community.hubitat.com/t/release-shelly-wave-1pm-driver/130863",
+ "drivers": [
+  {
+     "id":"27aff0ed-c068-4b23-b6ca-76a03108acb1",
+     "name":"Shelly Wave 1PM",
+     "location":"https://raw.githubusercontent.com/reneboer/Hubitat/main/Shelly/Shelly%20Wave%201PM%20Driver.groovy",
+     "required":true
+  }
+  ]
+}
