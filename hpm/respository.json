@@ -27,7 +27,7 @@
 			"name": "Heatit ZM Dimmer 250W Driver",
 			"category": "Integrations",
 			"tags": [ "Lights & Switches", "ZWave" ],
-			"location": "https://raw.githubusercontent.com/reneboer/Hubitat/main/ZVIDAR/packageManifest.json",
+			"location": "https://raw.githubusercontent.com/reneboer/Hubitat/main/Heatit/packageManifest.json",
 			"description": "Driver for ZM Dimmer 250W by Heatit."
 		},
 		{
