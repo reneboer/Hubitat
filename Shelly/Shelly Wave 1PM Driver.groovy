@@ -26,7 +26,7 @@ import groovy.transform.Field
 @Field String VERSION = "0.1"
 
 metadata {
-  definition(name: 'Shelly Wave 1PM', namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/Shelly/Shelly%20Wave%201PM%20Driver.groovy") {
+  definition(name: 'Shelly Wave 1PM', namespace: "reneboer", author: "Rene Boer", importUrl: "https://raw.githubusercontent.com/reneboer/Hubitat/main/Shelly/Shelly%20Wave%201PM%20Driver.groovy") {
     capability "Actuator"
     capability "Switch"
     capability "Power Meter"
