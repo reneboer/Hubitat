@@ -16,7 +16,6 @@
  * |-----------------------------------------------------------------------------------------------------------------------------------------------|
  *
  *  TO-DO:
- * Protect powerHigh/Low values agains impossible readings. Reset values on resetPower
  *
  *  CHANGELOG:
  *  0.1: First release
