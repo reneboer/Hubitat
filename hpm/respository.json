@@ -29,7 +29,22 @@
 			"tags": [ "Lights & Switches", "ZWave" ],
 			"location": "https://raw.githubusercontent.com/reneboer/Hubitat/main/ZVIDAR/packageManifest.json",
 			"description": "Driver for ZM Dimmer 250W by Heatit."
+		},
+		{
+			"name": "Aeotec Smart Switch 7 EU version Driver",
+			"category": "Integrations",
+			"tags": [ "Lights & Switches", "ZWave" ],
+			"location": "https://raw.githubusercontent.com/reneboer/Hubitat/main/Aeotec/packageManifest.json",
+			"description": "Driver for Smart Switch 7 EU version by Aeotec."
+		},
+		{
+			"name": "Shelly Wave 1PM Driver",
+			"category": "Integrations",
+			"tags": [ "Lights & Switches", "ZWave" ],
+			"location": "https://raw.githubusercontent.com/reneboer/Hubitat/main/Aeotec/packageManifest.json",
+			"description": "Driver for Wave 1PM QNSW-0001P16EU by Shelly."
 		}
+
 	]
 	
 }
