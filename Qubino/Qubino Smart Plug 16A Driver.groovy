@@ -1,8 +1,7 @@
 /**
  *  Qubino Smart Plug 16A ZMNHYDx
  *  Device Handler
- *  Version 1.2
- *  Date: 27.12.2023
+ *  Date: 15.1.2024
  *  Author: Rene Boer
  *  Copyright , none free to use
  *
@@ -16,7 +15,6 @@
  * |-----------------------------------------------------------------------------------------------------------------------------------------------|
  *
  *  TO-DO:
- * Protect powerHigh/Low values agains impossible readings. Reset values on resetPower
  *
  *  CHANGELOG:
  *  0.01: First release
@@ -30,10 +28,11 @@
  *  1.0 : Complete rewrite. Added S2 Securyty support.
  *  1.1 : Fix for bool type parameters.
  *  1.2 : Added outlet capability, fix for Energy reporting.
+ *  1.3 : Moved setting device configuration parameters for update function.
  */
 import groovy.transform.Field
 
-@Field String VERSION = "1.2"
+@Field String VERSION = "1.3"
 
 metadata {
   definition(name: 'Qubino Smart Plug 16A', namespace: "reneboer", author: "Rene Boer", importUrl: "https://raw.githubusercontent.com/reneboer/Hubitat/main/Qubino/Qubino%20Smart%20Plug%2016A%20Driver.groovy") {
@@ -51,7 +50,7 @@ metadata {
     attribute 'htmlTile', 'string'  // To display all readings in one tile.
     attribute  'amperageHigh', 'number'
     attribute  'amperageLow', 'number'
-        // attribute  'energyDuration', 'number'
+        // attribute  'energyDuration', 'string'
     attribute  'powerHigh', 'number'
     attribute  'powerLow', 'number'
     attribute  'voltageHigh', 'number'
@@ -233,9 +232,16 @@ void updated() {
     device.deleteCurrentState("powerL")
     device.deleteCurrentState("amperageH")
     device.deleteCurrentState("amperageL")
-    device.deleteCurrentState("voltageHh")
+    device.deleteCurrentState("voltageH")
     device.deleteCurrentState("voltageL")
   }
+  List<hubitat.zwave.Command> cmds=[]
+  configParams.each { param, data ->
+    if (settings[data.input.name] != null) {
+      cmds.add(configCmd(param, data.parameterSize, settings[data.input.name]))
+    }
+  }
+  sendCommands(cmds, 500)
 }
 
 void refresh() {
@@ -254,31 +260,20 @@ void refresh() {
 
 void configure() {
   logger("info", "configure()")
-  List<hubitat.zwave.Command> cmds=[
-    supervisionEncap(zwave.associationV2.associationRemove(groupingIdentifier:1)),
-    supervisionEncap(zwave.associationV2.associationSet(groupingIdentifier:1, nodeId:zwaveHubNodeId))
-  ]
-  configParams.each { param, data ->
-    if (settings[data.input.name] != null) {
-      cmds.addAll(configCmd(param, data.parameterSize, settings[data.input.name]))
-    }
-  }
+  List<hubitat.zwave.Command> cmds=[]
+  cmds.add(secureCmd(zwave.versionV2.versionGet()))
   if (!device.getDataValue("MSR")) {
-    cmds.add(secureCmd(zwave.versionV2.versionGet()))
     cmds.add(secureCmd(zwave.manufacturerSpecificV2.manufacturerSpecificGet()))
   }
-  runIn (cmds.size() * 2, refresh)
+  runIn (cmds.size(), refresh)
   sendCommands(cmds, 500)
 }
 
-private List<String> configCmd(parameterNumber, size, Boolean boolConfigurationValue) {
-  return [
-    supervisionEncap(zwave.configurationV1.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: boolConfigurationValue ? 1 : 0))//,
-//    secureCmd(zwave.configurationV1.configurationGet(parameterNumber: parameterNumber.toInteger()))
-  ]
+private String configCmd(parameterNumber, size, Boolean boolConfigurationValue) {
+  return supervisionEncap(zwave.configurationV1.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: boolConfigurationValue ? 1 : 0))
 }
 
-private List<String> configCmd(parameterNumber, size, value) {
+private String configCmd(parameterNumber, size, value) {
   List<Integer> confValue = []
   value = value.toInteger()
   switch(size) {
@@ -304,10 +299,7 @@ private List<String> configCmd(parameterNumber, size, value) {
       confValue = [value4.toInteger(), value3.toInteger(), value2.toInteger(), value1.toInteger()]
       break
   }
-  return [
-     supervisionEncap(zwave.configurationV1.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), configurationValue: confValue))//,
-//     secureCmd(zwave.configurationV1.configurationGet(parameterNumber: parameterNumber.toInteger()))
-  ]
+  return supervisionEncap(zwave.configurationV1.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), configurationValue: confValue))
 }
 
 void on() {

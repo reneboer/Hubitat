@@ -24,7 +24,8 @@
  *	states are used. Please use a SmartApp that supports custom attribute monitoring with this device in your rules.
  * |-----------------------------------------------------------------------------------------------------------------------------------------------|
  *
- *  TO-DO:
+ *	TO-DO:
+ *
  *  CHANGELOG:
  *  0.99: Final release code cleanup and commenting
  *  1.00: Added comments to code for readability
@@ -41,10 +42,11 @@
  *  1.3 : Minor tweak in min/max power reporting
  *  1.4 : Current device parameters will be populated on install or updated on refresh.
  *  1.5 : Fix for bool type parameters.
+ *  1.6 : Moved setting device configuration parameters for update function. Fix for powerLow status value.
  */
 import groovy.transform.Field
 
-@Field String VERSION = "1.5"
+@Field String VERSION = "1.6"
 
 metadata {
   definition (name: "Qubino DIN Dimmer no Temp", namespace: "reneboer", author: "Rene Boer", importUrl: "https://raw.githubusercontent.com/reneboer/Hubitat/main/Qubino/Qubino%20DIN%20Dimmer%20Driver%20no%20Temp.groovy") {
@@ -58,7 +60,6 @@ metadata {
     capability "Refresh"
     attribute "powerHigh", "number"
     attribute "powerLow", "number"
-    //attribute "kwhConsumption", "number" //attribute used to store and display power consumption in KWH 
 
     command "resetPower" //command to issue Meter Reset commands to reset accumulated pwoer measurements
 	
@@ -122,6 +123,13 @@ void updated() {
   log.warn "description logging is: ${txtEnable == true}"
   unschedule()
   if (logEnable) runIn(3600, logsOff)
+  List<hubitat.zwave.Command> cmds=[]
+  configParams.each { param, data ->
+    if (settings[data.input.name] != null) {
+      cmds.add(configCmd(param, data.parameterSize, settings[data.input.name]))
+    }
+  }
+  sendCommands(cmds, 500)
 }
 
 void refresh() {
@@ -142,30 +150,20 @@ void configure() {
   logger("debug", "configure()")
 
   List<hubitat.zwave.Command> cmds=[]
-  cmds.add(secureCmd(zwave.associationV2.associationRemove(groupingIdentifier:1)))
-  cmds.add(secureCmd(zwave.associationV2.associationSet(groupingIdentifier:1, nodeId:zwaveHubNodeId)))
-  configParams.each { param, data ->
-    if (settings[data.input.name] != null) {
-      cmds.addAll(configCmd(param, data.parameterSize, settings[data.input.name]))
-    }
-  }
   cmds.add(secureCmd(zwave.configurationV1.configurationSet(parameterNumber: 120, size: 1, scaledConfigurationValue: 0))) // Disable temp reporting
+  cmds.add(secureCmd(zwave.versionV3.versionGet()))
   if (!device.getDataValue("MSR")) {
-    cmds.add(secureCmd(zwave.versionV3.versionGet()))
     cmds.add(secureCmd(zwave.manufacturerSpecificV2.manufacturerSpecificGet()))
   }
-  runIn (cmds.size() * 2, refresh)
-  sendCommands(cmds, 1000)
+  runIn (cmds.size(), refresh)
+  sendCommands(cmds, 500)
 }
 
-private List<String> configCmd(parameterNumber, size, Boolean boolConfigurationValue) {
-  return [
-    secureCmd(zwave.configurationV2.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: boolConfigurationValue ? 1 : 0))//,
-//    secureCmd(zwave.configurationV2.configurationGet(parameterNumber: parameterNumber.toInteger()))
-  ]
+private String configCmd(parameterNumber, size, Boolean boolConfigurationValue) {
+  return secureCmd(zwave.configurationV2.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: boolConfigurationValue ? 1 : 0))
 }
 
-private List<String> configCmd(parameterNumber, size, value) {
+private String configCmd(parameterNumber, size, value) {
   List<Integer> confValue = []
   value = value.toInteger()
   switch(size) {
@@ -191,10 +189,7 @@ private List<String> configCmd(parameterNumber, size, value) {
       confValue = [value4.toInteger(), value3.toInteger(), value2.toInteger(), value1.toInteger()]
       break
   }
-  return [
-     secureCmd(zwave.configurationV2.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), configurationValue: confValue))//, 
-//     secureCmd(zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger()))
-  ]
+  return secureCmd(zwave.configurationV2.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), configurationValue: confValue))
 }
 
 void on() {
@@ -274,7 +269,7 @@ void zwaveEvent(hubitat.zwave.commands.meterv4.MeterReport cmd) {
       sendEventWrapper(name:"power", value: cmd.scaledMeterValue, unit:"W", descriptionText:"${device.displayName} consumes ${cmd.scaledMeterValue} W")
       // Update powerHigh/Low values when wihtin expected ranges
 	    def val = cmd.scaledMeterValue
-      if (val >= 0 && val <= 250) {
+      if (val > 0 && val <= 250) {
         def valLow = device.currentValue("powerLow")
         def valHigh = device.currentValue("powerHigh")
         if (val > valHigh || valHigh == null || valHigh == 0) sendEventWrapper(name:"powerHigh", value: val)

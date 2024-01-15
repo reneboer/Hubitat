@@ -1,10 +1,10 @@
 {
  "packageName":"Qubino DIN Dimmer Drivers",
  "author":"rboer",
- "version":"1.5",
+ "version":"1.6",
  "minimumHEVersion":"2.3.6",
- "dateReleased":"2023-12-29",
- "releaseNotes":"Fix for bool type parameters.",
+ "dateReleased":"2024-1-15",
+ "releaseNotes":"1.6: Moved setting device configuration parameters for update function. Fix for powerLow status value.\n1.5: Fix for bool type parameters.",
  "documentationLink":"https://github.com/reneboer/Hubitat/blob/main/Qubino/README.md",
  "communityLink":"https://community.hubitat.com/t/release-qubino-dim-dimmer-and-smart-plug-16a-drivers/130698",
  "drivers": [
