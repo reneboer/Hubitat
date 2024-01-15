@@ -1,8 +1,8 @@
 /**
  *  Shelly Wave 1PM QNSW-0001P16EU
  *  Device Handler
- *  Version 0.1
- *  Date: 27.12.2023
+ *  Version 1.1
+ *  Date: 9.1.2024
  *  Author: Rene Boer
  *  Copyright , none free to use
  *
@@ -19,10 +19,12 @@
  *
  *  CHANGELOG:
  *  0.1: First release
+ *  1.0: Added firmware targets to version report.
+ *  1.1: Added reboot function. Use for troubleshooting only. Moved setting device configuration parameters for update function. Removed Notification report, not officially supported. Added FirmwareUpdate report handler.  Fix for powerLow status value.
  */
 import groovy.transform.Field
 
-@Field String VERSION = "0.1"
+@Field String VERSION = "1.1"
 
 metadata {
   definition(name: 'Shelly Wave 1PM', namespace: "reneboer", author: "Rene Boer", importUrl: "https://raw.githubusercontent.com/reneboer/Hubitat/main/Shelly/Shelly%20Wave%201PM%20Driver.groovy") {
@@ -37,6 +39,7 @@ metadata {
     attribute "powerLow", "number"
 
     command "resetPower" //command to issue Meter Reset commands to reset accumulated power measurements
+    command "remoteReboot", [[name: "Reboot device*", type: "ENUM", description: "Reboot the device. Use for troubleshooting only.", default: "Please select", constraints: ["Please select", "Do nothing", "Perform reboot"]]] // Send remote reboot command to device
 
     fingerprint mfr: "1120", prod: "2", deviceId: "132", inClusters: "0x5E,0x98,0x9F,0x55,0x6C", secureInClusters: "0x86,0x73,0x87,0x7A,0x5A,0x8E,0x59,0x85,0x70,0x25,0x71,0x32,0x72", deviceJoinName: "Shelly Wave 1PM"
     fingerprint mfr: "1120", prod: "2", deviceId: "132", inClusters: "0x5E,0x98,0x9F,0x55,0x86,0x6C,0x73,0x87,0x7A,0x5A,0x8E,0x59,0x85,0x70,0x25,0x71,0x32,0x72", deviceJoinName: "Shelly Wave 1PM"
@@ -53,8 +56,9 @@ metadata {
   0x85: 2, // COMMAND_CLASS_ASSOCIATION_V2
   0x59: 3, // COMMAND_CLASS_ASSOCIATION_GRP_INFO_V3
 //  0x5A: 1, // COMMAND_CLASS_DEVICE_RESET_LOCALLY_V1
-//  0x7A: 5, // COMMAND_CLASS_FIRMWARE_UPDATE_MD_V5
+  0x7A: 5, // COMMAND_CLASS_FIRMWARE_UPDATE_MD_V5
 //  0x87: 3, // COMMAND_CLASS_INDICATOR_V3,
+//  0x71: 8, // COMMAND_CLASS_ALARM_V8
   0x72: 2, // COMMAND_CLASS_MANUFACTURER_SPECIFIC_V2
   0x8E: 3, // COMMAND_CLASS_MULTI_CHANNEL_ASSOCIATION_V3
   0x73: 1, // COMMAND_CLASS_POWER_LEVEL_V1
@@ -67,7 +71,6 @@ metadata {
   0x20: 2, // COMMAND_CLASS_BASIC_V2
   0x70: 4, // COMMAND_CLASS_CONFIGURATION_V4
   0x32: 6, // COMMAND_CLASS_METER_V6
-  0x40: 8, // COMMAND_CLASS_NOTIFICATION_V8
   0x25: 2  // COMMAND_CLASS_SWITCH_BINARY_V2
 ]
 @Field static Map configParams = [
@@ -197,6 +200,13 @@ void updated() {
   log.warn "description logging is: ${txtEnable == true}"
   unschedule()
   if (logEnable) runIn(3600, logsOff)
+  List<hubitat.zwave.Command> cmds=[]
+  configParams.each { param, data ->
+  if (settings[data.input.name] != null) {
+      cmds.add(configCmd(param, data.parameterSize, settings[data.input.name]))
+    }
+  }
+  sendCommands(cmds, 500)
 }
 
 void refresh() {
@@ -204,8 +214,7 @@ void refresh() {
   List<hubitat.zwave.Command> cmds=[
     secureCmd(zwave.meterV6.meterGet(scale: 0x00)),
     secureCmd(zwave.meterV6.meterGet(scale: 0x02)),
-    secureCmd(zwave.switchBinaryV2.switchBinaryGet()),
-    secureCmd(zwave.notificationV8.notificationGet(notificationType: hubitat.zwave.commands.notificationv8.NotificationGet.NOTIFICATION_TYPE_POWER_MANAGEMENT))
+    secureCmd(zwave.switchBinaryV2.switchBinaryGet())
   ]
   configParams.each { param, data ->
     cmds.add(secureCmd(zwave.configurationV4.configurationGet(parameterNumber: param.toInteger())))
@@ -216,16 +225,10 @@ void refresh() {
 void configure() {
   logger("debug", "configure()")
 
-  List<hubitat.zwave.Command> cmds=[]
-  cmds.add(supervisionEncap(zwave.associationV2.associationRemove(groupingIdentifier:1)))
-  cmds.add(supervisionEncap(zwave.associationV2.associationSet(groupingIdentifier:1, nodeId:zwaveHubNodeId)))
-  configParams.each { param, data ->
-  if (settings[data.input.name] != null) {
-      cmds.add(configCmd(param, data.parameterSize, settings[data.input.name]))
-    }
-  }
+  List<hubitat.zwave.Command> cmds=[
+    secureCmd(zwave.versionV3.versionGet())
+  ]
   if (!device.getDataValue("MSR")) {
-    cmds.add(secureCmd(zwave.versionV3.versionGet()))
     cmds.add(secureCmd(zwave.manufacturerSpecificV2.manufacturerSpecificGet()))
   }
   runIn (cmds.size() * 2, refresh)
@@ -287,11 +290,19 @@ void resetPower() {
   device.deleteCurrentState("powerLow")
 }
 
+void remoteReboot(flag) {
+  logger("debug", "remoteReboot(${flag})")
+  if (flag == "Perform reboot") {
+    logger ("warn", "Rebooting device.")
+    sendCommands(supervisionEncap(zwave.configurationV1.configurationSet(parameterNumber: 117, size: 1, scaledConfigurationValue: 1)))
+  }
+}
+
 /**
 * Incomming zwave event handlers.
 */
 void parse(String description) {
-  logger("debug", "parse() - description: ${description.inspect()}")
+//  logger("debug", "parse() - description: ${description.inspect()}")
   hubitat.zwave.Command cmd = zwave.parse(description, CMD_CLASS_VERS)
   if (cmd) {
     logger("debug", "parse() - parsed to cmd: ${cmd?.inspect()} with result: ${result?.inspect()}")
@@ -313,14 +324,14 @@ void zwaveEvent(hubitat.zwave.commands.meterv6.MeterReport cmd) {
       sendEventWrapper(name:"energy", value: cmd.scaledMeterValue, unit:"kWh", descriptionText:"consumed ${cmd.scaledMeterValue} kWh")
       break;
     case 0x02:
-	  def val = cmd.scaledMeterValue
-      sendEventWrapper(name:"power", value: val, unit:"W", descriptionText:"consumes ${cmd.scaledMeterValue} W")
+      def val = cmd.scaledMeterValue
+      sendEventWrapper(name:"power", value: val, unit:"W", descriptionText:"consumes ${val} W")
       // Update powerHigh/Low values when with in expected ranges
-      if (val >= 0 && val <= 4000) {
+      if (val > 0 && val <= 4000) {
         def valLow = device.currentValue("powerLow")
         def valHigh = device.currentValue("powerHigh")
-        if (val > valHigh || valHigh == null) sendEventWrapper(name:"powerHigh", value: val)
-        if (val < valLow || valLow == null) sendEventWrapper(name:"powerLow", value: val)
+        if (val > valHigh || valHigh == null) sendEventWrapper(name:"powerHigh", value: val, unit:"W", descriptionText:"Highest power level is ${val} W.")
+        if (val < valLow || valLow == null || valLow == 0.0) sendEventWrapper(name:"powerLow", value: val, unit:"W", descriptionText:"Lowest power level is ${val} W when on.")
       }
       break;
     default:
@@ -372,41 +383,43 @@ void zwaveEvent(hubitat.zwave.commands.manufacturerspecificv2.ManufacturerSpecif
   device.updateDataValue("MSR", String.format("%04X-%04X-%04X", cmd.manufacturerId, cmd.productTypeId, cmd.productId))
 }
 
+void zwaveEvent(hubitat.zwave.commands.firmwareupdatemdv5.FirmwareMdReport cmd) {
+  logger("trace", "zwaveEvent(FirmwareMdReport) - cmd: ${cmd.inspect()}")
+  logger ("debug", "Starting firmware update process...")
+}
+
+void zwaveEvent(hubitat.zwave.commands.firmwareupdatemdv5.FirmwareUpdateMdRequestReport cmd) {
+  logger("trace", "zwaveEvent(FirmwareUpdateMdRequestReport) - cmd: ${cmd.inspect()}")
+  if (cmd.status == 255) {
+    logger ("debug", "Valid firmware for device. Firmware update continuing...")
+  } else {
+    logger ("warn", "Invalid firmware for device, error code ${cms.status}")
+  }
+}
+
+void zwaveEvent(hubitat.zwave.commands.firmwareupdatemdv5.FirmwareUpdateMdStatusReport cmd) {
+  logger("trace", "zwaveEvent(FirmwareUpdateMdStatusReport) - cmd: ${cmd.inspect()}")
+  if (cmd.status == 255) {
+    logger ("debug", "Firmware update succesfully completed.")
+  } else {
+    logger ("warn", "Error updating firmware for device, error code ${cmd.status}")
+  }
+}
+
+void zwaveEvent(hubitat.zwave.commands.firmwareupdatemdv5.FirmwareUpdateMdGet  cmd) {
+// Do nothing as there are a huge number of reports and we do not want to flud the logs.
+//  logger("trace", "zwaveEvent(FirmwareMdReport ) - cmd: ${cmd.inspect()}")
+}
+
 void zwaveEvent(hubitat.zwave.commands.versionv3.VersionReport cmd) {
   logger("trace", "zwaveEvent(VersionReport) - cmd: ${cmd.inspect()}")
   device.updateDataValue("firmwareVersion", "${cmd.firmware0Version}.${cmd.firmware0SubVersion}")
   device.updateDataValue("protocolVersion", "${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion}")
   device.updateDataValue("hardwareVersion", "${cmd.hardwareVersion}")
-}
-
-// Set overloadProtection to 1 when detected.
-void zwaveEvent(hubitat.zwave.commands.notificationv8.NotificationReport cmd) {
-  logger("trace", "zwaveEvent(NotificationReport) - cmd: ${cmd.inspect()}")
-  switch (cmd.notificationType) {
-    case 0x08: // Power management notification
-      switch (cmd.event) {
-        case 0x00:
-          sendEventWrapper(name: "powerManagement", descriptionText: "Idle", value: 0x00)
-          break
-        case 0x06:
-          sendEventWrapper(name: "powerManagement", descriptionText: "Over-current detected", value: 0x06)
-          break
-        default:
-          if (cmd.event) logger ("warn", "Unhandled power notifcation event: ${cmd.event}")
-      }
-    case 0x04: // heat alarm
-      switch  (cmd.event) {
-        case 0x00:
-          sendEventWrapper(name: "heatalarm", descriptionText: "Idle", value: 0x00)
-          break
-        case 0x02:
-          sendEventWrapper(name: "heatalarm", descriptionText: "Overheat detected", value: 0x03)
-          break
-        default:
-          if (cmd.event) logger ("warn", "Unhandled heat alarm notifcation event: ${cmd.event}")
-      }
-    default:
-      if (cmd.event) logger ("warn", "Unhandled notifcation tpe: ${cmd.event}")
+  if (cmd.firmwareTargets > 0) {
+    cmd.targetVersions.each { target ->
+      device.updateDataValue("firmware${target.target}Version", "${target.version}.${target.subVersion}")
+    }
   }
 }
 
@@ -498,16 +511,17 @@ void sendCommands(List<String> cmds, Long delay=200) {
 
 //Single Command
 void sendCommands(String cmd) {
+  logger("debug", "sendCommands Command($cmd)")
   sendHubCommand(new hubitat.device.HubAction(cmd, hubitat.device.Protocol.ZWAVE))
 }
 
 //Secure and MultiChannel Encapsulate
 String secureCmd(String cmd) {
-  logger("debug", "secureCmd String(${cmd})")
+//  logger("debug", "secureCmd String(${cmd})")
   return zwaveSecureEncap(cmd)
 }
 String secureCmd(hubitat.zwave.Command cmd) {
-  logger("debug", "secureCmd Command(${cmd})")
+//  logger("debug", "secureCmd Command(${cmd})")
   return zwaveSecureEncap(cmd.format())
 }
 
