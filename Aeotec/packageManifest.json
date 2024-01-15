@@ -1,10 +1,10 @@
 {
  "packageName":"Aeotec Smart Switch 7 EU version",
  "author":"Rene Boer",
- "version":"0.1",
+ "version":"1.0",
  "minimumHEVersion":"2.3.6",
- "dateReleased":"2023-12-29",
- "releaseNotes":"First release.",
+ "dateReleased":"2024-1-14",
+ "releaseNotes":"Added device Clock update when off on config. Added firmware targets to version report. Moved setting device configuration parameters for update function. Added FirmwareUpdate report handler. Fixed Reset Device function.",
  "documentationLink":"https://github.com/reneboer/Hubitat/blob/main/Aeotec/README.md",
  "communityLink":"https://community.hubitat.com/t/release-aeotec-smart-switch-driver-7-eu-version/130862",
  "drivers": [

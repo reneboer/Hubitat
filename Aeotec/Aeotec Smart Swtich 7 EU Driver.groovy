@@ -1,8 +1,8 @@
 /**
  *  Aeotec Smart Switch 7 EU ZW175-C16
  *  Device Handler
- *  Version 0.1
- *  Date: 27.12.2023
+ *  Version 1.0
+ *  Date: 14.1.2024
  *  Author: Rene Boer
  *  Copyright , none free to use
  *
@@ -18,14 +18,15 @@
  *  TO-DO:
  *
  *  CHANGELOG:
- *  0.01: First release
+ *  0.1: First release
+ *  1.0 : Added device Clock update when off on config. Added firmware targets to version report. Moved setting device configuration parameters for update function. Added FirmwareUpdate report handler. Fixed Reset Device function.
  */
 import groovy.transform.Field
 
-@Field String VERSION = "0.1"
+@Field String VERSION = "1.0"
 
 metadata {
-  definition(name: 'Aeotec Smart Switch 7 EU', namespace: "reneboer", author: "Rene Boer", importUrl: "https://raw.githubusercontent.com/reneboer/Hubitat/main/Aeotec/Aeotec%20Smart%20Swtich%207%20EU%20Driver.groovy") {
+  definition(name: 'Aeotec Smart Switch 7 EU', namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/Aeotec/Aeotec%20Smart%20Swtich%207%20EU%20Driver.groovy") {
     capability 'Actuator'
     capability 'Switch'
     capability 'Outlet'
@@ -48,7 +49,7 @@ metadata {
 
     command 'resetPower' //command to issue Meter Reset commands to reset accumulated power measurements
     command 'startStopBlinking', [[name: "Start or stop LED blinking*", type: "NUMBER", description: "0 = Stop blinking. 1-255s = Blinking duration."]] // Send Start/stop blink command to device
-    command 'deviceReset', [[name: "Reset device*", type: "ENUM", description: "", constraints: [0:"Default configuration",1:"Factory Reset"]]] // Send Factory Reset or Initialization command to device
+    command 'resetDevice', [[name: "Reset device*", type: "ENUM", description: "Use with Care! Perform parameters reset to defaults, or a full factory reset. The latter will remove the switch from your Z-Wave network.", constraints: ["Please select", "Set device default configuration", "Factory Reset (Removes switch from network!)"]]] // Send Factory Reset or Initialization command to device
     command 'setAssociation' //command to issue Association Set commands to the modules according to user preferences
 
     fingerprint mfr:"0345", prod:"0002", deviceId: "0084", inClusters:"0x5E,0x55,0x22,0x98,0x9F,0x6C", secureInClusters: "0x85,0x59,0x70,0x2C,0x2B,0x81,0x71,0x32,0x25,0x33,0x26,0x75,0x73,0x7A,0x86,0x5A,0x72", deviceJoinName: "Aeotec Smart Switch 7", model:"Smart Switch 7", manufacturer:"Aeotec"
@@ -66,27 +67,27 @@ metadata {
 // When commented out, there is no specific handler routine
 @Field static Map CMD_CLASS_VERS = [
   0x70: 1, // COMMAND_CLASS_CONFIGURATION_V1 
-//  0x59: 1, // COMMAND_CLASS_ASSOCIATION_GRP_INFO_V1
+  0x59: 1, // COMMAND_CLASS_ASSOCIATION_GRP_INFO_V1
   0x85: 2, // COMMAND_CLASS_ASSOCIATION_V2 
   0x71: 4, // COMMAND_CLASS_NOTIFICATION_V4
   0x32: 4, // COMMAND_CLASS_METER_V4
   0x25: 1, // COMMAND_CLASS_SWITCH_BINARY_V1
   0x73: 1, // COMMAND_CLASS_POWERLEVEL_V1
   0x72: 2, // COMMAND_CLASS_MANUFACTURER_SPECIFIC_V2
-//  0x5A: 1, // COMMAND_CLASS_DEVICE_RESET_LOCALLY_V1
+  0x5A: 1, // COMMAND_CLASS_DEVICE_RESET_LOCALLY_V1
   0x86: 2, // COMMAND_CLASS_VERSION_V2 
-//  0x5E: 2, // COMMAND_CLASS_ZWAVEPLUS_INFO_V2
-//  0x55: 2, // COMMAND_CLASS_TRANSPORT_SERVICE_V2
+  0x5E: 2, // COMMAND_CLASS_ZWAVEPLUS_INFO_V2
+  0x55: 2, // COMMAND_CLASS_TRANSPORT_SERVICE_V2
   0x9F: 1, // COMMAND_CLASS_SECURITY_2_V1
   0x6C: 1, // COMMAND_CLASS_SUPERVISION_V1
-//  0x7A: 4, // COMMAND_CLASS_FIRMWARE_UPDATE_MD_V4
-//  0x2C: 1, // COMMAND_SCENE_ACTUATOR_CONF_V1
-//  0x2B: 1, // COMMAND_SCENE_ACTIVATION_V1
-//  0x81: 1, // COMMAND_CLOCK_V1
-//  0x33: 1, // COMMAND_SWITCH_COLOR_V1
+  0x7A: 4, // COMMAND_CLASS_FIRMWARE_UPDATE_MD_V4
+  0x2C: 1, // COMMAND_SCENE_ACTUATOR_CONF_V1
+  0x2B: 1, // COMMAND_SCENE_ACTIVATION_V1
+  0x81: 1, // COMMAND_CLOCK_V1
+  0x33: 1, // COMMAND_SWITCH_COLOR_V1
   0x26: 2, // COMMAND_SWITCH_MULTI_LEVEL_V2
-//  0x22: 1, // COMMAND_APPLICATIPON_STATUS_V1
-//  0x75: 2, // COMMAND_PROTECTION_V2
+  0x22: 1, // COMMAND_APPLICATIPON_STATUS_V1
+  0x75: 2, // COMMAND_PROTECTION_V2
   0x98: 1  // COMMAND_SECURITY_V1
 ]
 
@@ -237,6 +238,13 @@ void updated() {
   log.warn "description logging is: ${txtEnable == true}"
   unschedule()
   if (logEnable) runIn(3600, logsOff)
+  List<hubitat.zwave.Command> cmds=[]
+  configParams.each { param, data ->
+    if (settings[data.input.name] != null) {
+      cmds.add(configCmd(param, data.parameterSize, settings[data.input.name]))
+    }
+  }
+  sendCommands(cmds, 500)
 }
 
 void refresh() {
@@ -256,30 +264,25 @@ void refresh() {
 void configure() {
   logger("info", "configure()")
   List<hubitat.zwave.Command> cmds=[
-    supervisionEncap(zwave.associationV2.associationRemove(groupingIdentifier:1)),
-    supervisionEncap(zwave.associationV2.associationSet(groupingIdentifier:1, nodeId:zwaveHubNodeId))
+    secureCmd(zwave.versionV2.versionGet()),
+    secureCmd(zwave.clockV1.clockGet())
   ]
-  configParams.each { param, data ->
-    if (settings[data.input.name] != null) {
-      cmds.addAll(configCmd(param, data.parameterSize, settings[data.input.name]))
-    }
-  }
   if (!device.getDataValue("MSR")) {
-    cmds.add(secureCmd(zwave.versionV2.versionGet()))
     cmds.add(secureCmd(zwave.manufacturerSpecificV2.manufacturerSpecificGet()))
   }
   runIn (cmds.size() * 2, refresh)
   sendCommands(cmds, 500)
 }
 
-private List<String> configCmd(parameterNumber, size, Boolean boolConfigurationValue) {
-  return [
-    supervisionEncap(zwave.configurationV1.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: boolConfigurationValue ? 1 : 0))//,
-//    secureCmd(zwave.configurationV1.configurationGet(parameterNumber: parameterNumber.toInteger()))
-  ]
+private String configCmd(parameterNumber, size, Boolean boolConfigurationValue) {
+  supervisionEncap(zwave.configurationV1.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: boolConfigurationValue ? 1 : 0))
 }
 
-private List<String> configCmd(parameterNumber, size, value) {
+private String configCmd(parameterNumber, size, String enumConfigurationValue) {
+  supervisionEncap(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: enumConfigurationValue.toInteger()))
+}
+
+private String configCmd(parameterNumber, size, value) {
   List<Integer> confValue = []
   value = value.toInteger()
   switch(size) {
@@ -305,10 +308,7 @@ private List<String> configCmd(parameterNumber, size, value) {
       confValue = [value4.toInteger(), value3.toInteger(), value2.toInteger(), value1.toInteger()]
       break
   }
-  return [
-     supervisionEncap(zwave.configurationV1.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), configurationValue: confValue))//,
-//     secureCmd(zwave.configurationV1.configurationGet(parameterNumber: parameterNumber.toInteger()))
-  ]
+  supervisionEncap(zwave.configurationV1.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), configurationValue: confValue))
 }
 
 void on() {
@@ -365,15 +365,17 @@ void startStopBlinking (duration) {
 
 void resetDevice (flag) {
   logger("debug", "resetDevice( ${flag} )")
-  def value = flag == 1 ? 0x55555555 : 0x00
-  sendCommands(supervisionEncap(zwave.configurationV1.configurationSet(parameterNumber: 255, size: 4, scaledConfigurationValue: value)))
+  if (flag != "Please select") {
+    Integer value = flag == "Factory Reset (Removes switch from network!)" ? 0x55555555 : 0x00
+    sendCommands(supervisionEncap(zwave.configurationV1.configurationSet(parameterNumber: 255, size: 4, scaledConfigurationValue: value)))
+  }  
 }
  
 /*
 *	--------	EVENT PARSER SECTION	--------
 */
 void parse(String description) {
-  logger("debug", "parse() - description: ${description.inspect()}")
+//  logger("debug", "parse() - description: ${description.inspect()}")
   hubitat.zwave.Command cmd = zwave.parse(description, CMD_CLASS_VERS)
   if (cmd) {
     logger("debug", "parse() - parsed to cmd: ${cmd?.inspect()} with result: ${result?.inspect()}")
@@ -394,7 +396,7 @@ void zwaveEvent(hubitat.zwave.commands.meterv4.MeterReport cmd) {
 
 void zwaveEvent(hubitat.zwave.commands.switchbinaryv1.SwitchBinaryReport cmd) {
   logger("trace", "zwaveEvent(SwitchBinaryReport) - cmd: ${cmd.inspect()}")
-  sendEventWrapper(name:"switch", value: cmd.value ? "on" : "off")
+  sendEventWrapper(name:"switch", value: cmd.value ? "on" : "off", type: "digital")
 }
 
 void zwaveEvent(hubitat.zwave.commands.configurationv1.ConfigurationReport cmd) {
@@ -436,6 +438,11 @@ void zwaveEvent(hubitat.zwave.commands.versionv2.VersionReport cmd) {
   device.updateDataValue("firmwareVersion", "${cmd.firmware0Version}.${cmd.firmware0SubVersion}")
   device.updateDataValue("protocolVersion", "${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion}")
   device.updateDataValue("hardwareVersion", "${cmd.hardwareVersion}")
+  if (cmd.firmwareTargets > 0) {
+    cmd.targetVersions.each { target ->
+      device.updateDataValue("firmware${target.target}Version", "${target.version}.${target.subVersion}")
+    }
+  }
 }
 
 void zwaveEvent(hubitat.zwave.commands.notificationv4.NotificationReport cmd) {
@@ -464,15 +471,58 @@ void zwaveEvent(hubitat.zwave.commands.notificationv4.NotificationReport cmd) {
           sendEventWrapper(name: "system", descriptionText: "System hardware failure", value: 0x03)
           break
         default:
-          if (cmd.event) logger ("warn", "Unhandled appliance notifcation event: ${cmd.event}")
+          if (cmd.event) logger ("warn", "Unhandled system notifcation event: ${cmd.event}")
       }
     default:
       if (cmd.event) logger ("warn", "Unhandled notifcation tpe: ${cmd.event}")
   }
 }
 
+void zwaveEvent(hubitat.zwave.commands.firmwareupdatemdv5.FirmwareMdReport cmd) {
+  logger("trace", "zwaveEvent(FirmwareMdReport) - cmd: ${cmd.inspect()}")
+  logger ("debug", "Starting firmware update process...")
+}
+
+void zwaveEvent(hubitat.zwave.commands.firmwareupdatemdv5.FirmwareUpdateMdRequestReport cmd) {
+  logger("trace", "zwaveEvent(FirmwareUpdateMdRequestReport) - cmd: ${cmd.inspect()}")
+  if (cmd.status == 255) {
+    logger ("debug", "Valid firmware for device. Firmware update continuing...")
+  } else {
+    logger ("warn", "Invalid firmware for device, error code ${cms.status}")
+  }
+}
+
+void zwaveEvent(hubitat.zwave.commands.firmwareupdatemdv5.FirmwareUpdateMdStatusReport cmd) {
+  logger("trace", "zwaveEvent(FirmwareUpdateMdStatusReport) - cmd: ${cmd.inspect()}")
+  if (cmd.status == 255) {
+    logger ("debug", "Firmware update succesfully completed.")
+  } else {
+    logger ("warn", "Error updating firmware for device, error code ${cmd.status}")
+  }
+}
+
+void zwaveEvent(hubitat.zwave.commands.firmwareupdatemdv5.FirmwareUpdateMdGet  cmd) {
+// Do nothing as there are a huge number of reports and we do not want to flud the logs.
+//  logger("trace", "zwaveEvent(FirmwareMdReport ) - cmd: ${cmd.inspect()}")
+}
+
 void zwaveEvent(hubitat.zwave.commands.protectionv1.ProtectionReport cmd) {
   logger("trace", "zwaveEvent(ProtectionReport) - cmd: ${cmd.inspect()}")
+}
+
+// Correct device clock when off.
+void zwaveEvent(hubitat.zwave.commands.clockv1.ClockReport cmd) {    
+  logger("trace", "zwaveEvent(ClockReport) - cmd: ${cmd.inspect()}")
+    
+  def now = Calendar.instance
+  def dayOfWeek = now.get(Calendar.DAY_OF_WEEK) - 1
+  if (dayOfWeek == 0) dayOfWeek = 7
+  if(cmd.weekday != dayOfWeek || cmd.hour != now.get(Calendar.HOUR_OF_DAY) || cmd.minute != now.get(Calendar.MINUTE)) {
+    sendCommands(secureCmd(zwave.clockV1.clockSet(hour: now.get(Calendar.HOUR_OF_DAY), minute: now.get(Calendar.MINUTE), weekday: dayOfWeek)))
+    logger("info", "Updating device clock settings due to mismatch: was ${cmd.weekday}, ${cmd.hour}:${cmd.minute}; set to ${dayOfWeek}, ${now.get(Calendar.HOUR_OF_DAY)}:${now.get(Calendar.MINUTE)}")
+  } else {
+    logger("info", "Device clock settings are correct: ${cmd.weekday}, ${cmd.hour}:${cmd.minute}")
+  }
 }
 
 // Devices that support the Security command class can send messages in an encrypted form; they arrive wrapped in a SecurityMessageEncapsulation command and must be unencapsulated 
@@ -557,16 +607,17 @@ void sendCommands(List<String> cmds, Long delay=200) {
 
 //Single Command
 void sendCommands(String cmd) {
+  logger("debug", "sendCommands Command($cmd)")
   sendHubCommand(new hubitat.device.HubAction(cmd, hubitat.device.Protocol.ZWAVE))
 }
 
-//Secure and MultiChannel Encapsulate
+// Secure Encapsulate
 String secureCmd(String cmd) {
-  logger("debug", "secureCmd String(${cmd})")
+//  logger("debug", "secureCmd String(${cmd})")
   return zwaveSecureEncap(cmd)
 }
 String secureCmd(hubitat.zwave.Command cmd) {
-  logger("debug", "secureCmd Command(${cmd})")
+//  logger("debug", "secureCmd Command(${cmd})")
   return zwaveSecureEncap(cmd)
 }
 
@@ -575,7 +626,7 @@ String secureCmd(hubitat.zwave.Command cmd) {
 @Field static Map<String, Short> sessionIDs = new java.util.concurrent.ConcurrentHashMap()
 
 String supervisionEncap(hubitat.zwave.Command cmd) {
-  logger("trace", "supervisionEncap(): ${cmd}")
+//  logger("trace", "supervisionEncap(): ${cmd}")
   if (getDataValue("S2")?.toInteger() != null) {
     //Encap with SupervisionGet
     Short sessId = getSessionId()
@@ -725,4 +776,3 @@ private convertStringListToIntegerList(stringList) {
   }
   return stringList
 }
-
