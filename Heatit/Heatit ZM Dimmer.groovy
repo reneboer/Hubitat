@@ -1,6 +1,6 @@
 /**
  *  Heatit ZM Dimmer Z-Wave 800 Driver for Hubitat
- *  Date: 13.12.2023
+ *  Date: 16.1.2024
  *	Author: Rene Boer
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -30,10 +30,11 @@
  *    V1.3 : Small change for powerHigh/Low. Added DoubleTapableButton capability. Minor fixes.
  *    V1.4 : Current device parameters will be populated on install or updated on refresh.
  *    V1.5 : Fix for bool type parameters.
+ *    V1.6 : Added firmware targets to version report. Moved setting device configuration parameters for update function. 
  */
 import groovy.transform.Field
 
-@Field String VERSION = "1.5"
+@Field String VERSION = "1.6"
 
 metadata {
   definition (name: "Heatit ZM Dimmer", namespace: "reneboer", author: "Rene Boer", importUrl: "https://raw.githubusercontent.com/reneboer/Hubitat/main/Heatit/Heatit%20ZM%20Dimmer.groovy") {
@@ -91,16 +92,16 @@ metadata {
   0x26: 4  // COMMAND_CLASS_SWITCH_MULTILEVEL_V4
 ]
 @Field static Map configParams = [
-  1:  [input: [name: "configParam1", type: "enum", title: "Power restore level", description: "The state the dimmer should return to once power is restored after a power failure.", defaultValue: 100, required: true, options:[[0:"off"], [100:"on"], [5:"5%"], [10:"10%"], [15:"15%"], [20:"20%"], [25:"25%"], [30:"30%"], [50:"50%"], [75:"75%"], [90:"90%"]]], parameterSize: 1],
-  2:  [input: [name: "configParam2", type: "enum", title: "Switch ON level", description:"Defines the dimming level when restored from the OFF state.", defaultValue: 0, required: true, options:[[0:"off"], [100:"on"], [5:"5%"], [10:"10%"], [15:"15%"], [20:"20%"], [25:"25%"], [30:"30%"], [50:"50%"], [75:"75%"], [90:"90%"]]], parameterSize: 1],
+  1:  [input: [name: "configParam1", type: "enum", title: "Power restore level", description: "The state the dimmer should return to once power is restored after a power failure.", defaultValue: 100, required: true, options:[0:"off", 100:"on", 5:"5%", 10:"10%", 15:"15%", 20:"20%", 25:"25%", 30:"30%", 50:"50%", 75:"75%", 90:"90%"]], parameterSize: 1],
+  2:  [input: [name: "configParam2", type: "enum", title: "Switch ON level", description:"Defines the dimming level when restored from the OFF state.", defaultValue: 0, required: true, options:[0:"off", 100:"on", 5:"5%", 10:"10%", 15:"15%", 20:"20%", 25:"25%", 30:"30%", 50:"50%", 75:"75%", 90:"90%"]], parameterSize: 1],
   3:  [input: [name: "configParam3", type: "number", title: "Automatic turn OFF", range: "0..86400", description:"Time for the dimmer to turn off automatically after turning it on.<br/>0 Disabled, 1-86400s", required: true, defaultValue: 0], parameterSize: 4],
   4:  [input: [name: "configParam4", type: "number", title: "Automatic turn ON", range: "0..86400", description:"Time for the dimmer to turn on automatically after turning it off.<br/>0 Disabled, 1-86400s", required: true, defaultValue: 0], parameterSize: 4],
   5:  [input: [name: "configParam5", type: "number", title: "Turn off delay time", range: "0..60", description:"The time it takes before the dimmer turns off after turning it off.<br/>0 Disabled, 1-60s", required: true, defaultValue: 0], parameterSize: 1],
-  6:  [input: [name: "configParam6", type: "enum", title: "S1 functionality", description: "S1 switch functionality.", defaultValue: 0, required: true, options:[[0:"Default Dimming"], [1:"Scene Controller"], [2:"Scene Controller and Dimming"], [3:"Disabled"]]], parameterSize: 1],
-  7:  [input: [name: "configParam7", type: "enum", title: "S2 functionality", description: "S2 switch functionality.", defaultValue: 0, required: true, options:[[0:"Default Dimming"], [1:"Scene Controller"], [2:"Scene Controller and Dimming"], [3:"Disabled"]]], parameterSize: 1],
-  8:  [input: [name: "configParam8", type: "enum", title: "Dimming duration", description:"Define how long it takes to dim when using the external switch.", required: true, defaultValue: 50, options: [[0:"Instantly"], [5:"0.5s"], [10:"1s"], [20:"2s"], [30:"3s"], [40:"4s"], [50:"5s"], [60:"6s"], [70:"7s"], [80:"8s"], [90:"9s"], [100:"10s"]]], parameterSize: 1],
-  9:  [input: [name: "configParam9", type: "enum", title: "Dimmer Curve", description: "Choose if the dimmer uses Linear or Logarythmic dimming.", defaultValue: 0, required: true, options:[[0:"Liniar dimming"], [1:"Logarithmic dimming"]]], parameterSize: 1],
-  10: [input: [name: "configParam10",type: "enum", title: "Load dimming mode", description: "Choose the dimming type.", defaultValue: 0, required: true, options:[[0:"Trailing edge"], [1:"Leading edge"]]], parameterSize: 1],
+  6:  [input: [name: "configParam6", type: "enum", title: "S1 functionality", description: "S1 switch functionality.", defaultValue: 0, required: true, options:[0:"Default Dimming", 1:"Scene Controller", 2:"Scene Controller and Dimming", 3:"Disabled"]], parameterSize: 1],
+  7:  [input: [name: "configParam7", type: "enum", title: "S2 functionality", description: "S2 switch functionality.", defaultValue: 0, required: true, options:[0:"Default Dimming", 1:"Scene Controller", 2:"Scene Controller and Dimming", 3:"Disabled"]], parameterSize: 1],
+  8:  [input: [name: "configParam8", type: "enum", title: "Dimming duration", description:"Define how long it takes to dim when using the external switch.", required: true, defaultValue: 50, options: [0:"Instantly", 5:"0.5s", 10:"1s", 20:"2s", 30:"3s", 40:"4s", 50:"5s", 60:"6s", 70:"7s", 80:"8s", 90:"9s", 100:"10s"]], parameterSize: 1],
+  9:  [input: [name: "configParam9", type: "enum", title: "Dimmer Curve", description: "Choose if the dimmer uses Linear or Logarythmic dimming.", defaultValue: 0, required: true, options:[0:"Liniar dimming", 1:"Logarithmic dimming"]], parameterSize: 1],
+  10: [input: [name: "configParam10",type: "enum", title: "Load dimming mode", description: "Choose the dimming type.", defaultValue: 0, required: true, options:[0:"Trailing edge", 1:"Leading edge"]], parameterSize: 1],
   11: [input: [name: "configParam11",type: "number", title: "Maximum dim level", range: "2..99", description:"Highest dim level of the dimmer.<br/>2-99%", required: true, defaultValue: 90], parameterSize: 1],
   12: [input: [name: "configParam12",type: "number", title: "Minmum dim level", range: "1..98", description:"Lowest dim level of the dimmer.<br/>1-98%", required: true, defaultValue: 15], parameterSize: 1],
   13: [input: [name: "configParam13",type: "number", title: "Meter report threshold", range: "0..250", description:"Threshold for device to send meter report in W.<br/>0 Disabled, 1-250W", required: true, defaultValue: 10], parameterSize: 1],
@@ -124,6 +125,13 @@ void updated() {
   log.warn "description logging is: ${txtEnable == true}"
   unschedule()
   if (logEnable) runIn(3600, logsOff)
+  List<hubitat.zwave.Command> cmds=[]
+  configParams.each { param, data ->
+    if (settings[data.input.name] != null) {
+      cmds.add(configCmd(param, data.parameterSize, settings[data.input.name]))
+    }
+  }
+  sendCommands(cmds, 500)
 }
 
 void refresh() {
@@ -143,30 +151,22 @@ void refresh() {
 void configure() {
   logger("debug", "configure()")
 
-  List<hubitat.zwave.Command> cmds=[]
-  cmds.add(supervisionEncap(zwave.associationV2.associationRemove(groupingIdentifier:1)))
-  cmds.add(supervisionEncap(zwave.associationV2.associationSet(groupingIdentifier:1, nodeId:zwaveHubNodeId)))
-  configParams.each { param, data ->
-    if (settings[data.input.name] != null) {
-      cmds.addAll(configCmd(param, data.parameterSize, settings[data.input.name]))
-    }
-  }
+  List<hubitat.zwave.Command> cmds=[
+    secureCmd(zwave.versionV3.versionGet()),
+    secureCmd(zwave.clockV1.clockGet())
+  ]
   if (!device.getDataValue("MSR")) {
-    cmds.add(secureCmd(zwave.versionV3.versionGet()))
     cmds.add(secureCmd(zwave.manufacturerSpecificV2.manufacturerSpecificGet()))
   }
   runIn (cmds.size() * 2, refresh)
-  sendCommands(cmds, 1000)
+  sendCommands(cmds, 500)
 }
 
-private List<String> configCmd(parameterNumber, size, Boolean boolConfigurationValue) {
-  return [
-    supervisionEncap(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: boolConfigurationValue ? 1 : 0))//,
-//    secureCmd(zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger()))
-  ]
+private String configCmd(parameterNumber, size, Boolean boolConfigurationValue) {
+  return supervisionEncap(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), scaledConfigurationValue: boolConfigurationValue ? 1 : 0))
 }
 
-private List<String> configCmd(parameterNumber, size, value) {
+private String configCmd(parameterNumber, size, value) {
   List<Integer> confValue = []
   
   switch(size) {
@@ -192,10 +192,7 @@ private List<String> configCmd(parameterNumber, size, value) {
       confValue = [value4.toInteger(), value3.toInteger(), value2.toInteger(), value1.toInteger()]
       break
   }
-  return [
-     supervisionEncap(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), configurationValue: confValue))//, 
-//     secureCmd(zwave.configurationV4.configurationGet(parameterNumber: parameterNumber.toInteger()))
-  ]
+  return supervisionEncap(zwave.configurationV4.configurationSet(parameterNumber: parameterNumber.toInteger(), size: size.toInteger(), configurationValue: confValue))
 }
 
 void on() {
@@ -339,7 +336,7 @@ void zwaveEvent(hubitat.zwave.commands.meterv5.MeterReport cmd) {
     case 0x02:
 	  def val = cmd.scaledMeterValue
       sendEventWrapper(name:"power", value: val, unit:"W", descriptionText:"consumes ${cmd.scaledMeterValue} W")
-      // Update powerHigh/Low values when wihtin expected ranges
+      // Update powerHigh/Low values when with in expected ranges
       if (val >= 0 && val <= 300) {
         def valLow = device.currentValue("powerLow")
         def valHigh = device.currentValue("powerHigh")
@@ -399,6 +396,11 @@ void zwaveEvent(hubitat.zwave.commands.versionv3.VersionReport cmd) {
   device.updateDataValue("firmwareVersion", "${cmd.firmware0Version}.${cmd.firmware0SubVersion}")
   device.updateDataValue("protocolVersion", "${cmd.zWaveProtocolVersion}.${cmd.zWaveProtocolSubVersion}")
   device.updateDataValue("hardwareVersion", "${cmd.hardwareVersion}")
+  if (cmd.firmwareTargets > 0) {
+    cmd.targetVersions.each { target ->
+      device.updateDataValue("firmware${target.target}Version", "${target.version}.${target.subVersion}")
+    }
+  }
 }
 
 // Set overloadProtection to 1 when detected.
@@ -414,7 +416,7 @@ void zwaveEvent(hubitat.zwave.commands.notificationv8.NotificationReport cmd) {
         break
       case 8:
         map.descriptionText = "power overload detected"
-		map.value = 1
+        map.value = 1
         break
       default:
         if (cmd.event) logger ("warn", "Unhandled power notifcation event: ${cmd.event}")
@@ -423,6 +425,21 @@ void zwaveEvent(hubitat.zwave.commands.notificationv8.NotificationReport cmd) {
     sendEventWrapper(map)
   } else {
     logger("warn", "Unhandled NotificationReport: ${cmd}")
+  }
+}
+
+// Correct device clock when off.
+void zwaveEvent(hubitat.zwave.commands.clockv1.ClockReport cmd) {    
+  logger("trace", "zwaveEvent(ClockReport) - cmd: ${cmd.inspect()}")
+    
+  def now = Calendar.instance
+  def dayOfWeek = now.get(Calendar.DAY_OF_WEEK) - 1
+  if (dayOfWeek == 0) dayOfWeek = 7
+  if(cmd.weekday != dayOfWeek || cmd.hour != now.get(Calendar.HOUR_OF_DAY) || cmd.minute != now.get(Calendar.MINUTE)) {
+    sendCommands(secureCmd(zwave.clockV1.clockSet(hour: now.get(Calendar.HOUR_OF_DAY), minute: now.get(Calendar.MINUTE), weekday: dayOfWeek)))
+    logger("info", "Updating device clock settings due to mismatch: was ${cmd.weekday}, ${cmd.hour}:${cmd.minute}; set to ${dayOfWeek}, ${now.get(Calendar.HOUR_OF_DAY)}:${now.get(Calendar.MINUTE)}")
+  } else {
+    logger("info", "Device clock settings are correct: ${cmd.weekday}, ${cmd.hour}:${cmd.minute}")
   }
 }
 

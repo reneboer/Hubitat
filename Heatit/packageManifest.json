@@ -1,10 +1,10 @@
 {
  "packageName":"Heatit ZM Dimmer 250W Driver",
  "author":"Rene Boer",
- "version":"1.5",
+ "version":"1.6",
  "minimumHEVersion":"2.3.6",
- "dateReleased":"2023-12-29",
- "releaseNotes":"Fix for boolean type parameters.",
+ "dateReleased":"2024-1-16",
+ "releaseNotes":"V1.6 : Added firmware targets to version report. Moved setting device configuration parameters for update function.",
  "documentationLink":"https://github.com/reneboer/Hubitat/blob/main/Heatit/README.MD",
  "communityLink":"https://community.hubitat.com/t/release-heatit-zm-dimmer-250w-with-secure-s2-support/128066",
  "drivers": [
