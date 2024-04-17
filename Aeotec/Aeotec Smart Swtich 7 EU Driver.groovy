@@ -18,12 +18,13 @@
  *  TO-DO:
  *
  *  CHANGELOG:
- *  0.1: First release
+ *  0.1 : First release
  *  1.0 : Added device Clock update when off on config. Added firmware targets to version report. Moved setting device configuration parameters for update function. Added FirmwareUpdate report handler. Fixed Reset Device function.
+ *  1.1 : Add power poll when turned on or off.
  */
 import groovy.transform.Field
 
-@Field String VERSION = "1.0"
+@Field String VERSION = "1.1"
 
 metadata {
   definition(name: 'Aeotec Smart Switch 7 EU', namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/Aeotec/Aeotec%20Smart%20Swtich%207%20EU%20Driver.groovy") {
@@ -314,11 +315,13 @@ private String configCmd(parameterNumber, size, value) {
 void on() {
   logger("debug", "on()")
   sendCommands(supervisionEncap(zwave.basicV1.basicSet(value: 0xFF)))
+  runIn(5, "poll")
 }
 
 void off() {
   logger("debug", "off()")
   sendCommands(supervisionEncap(zwave.basicV1.basicSet(value: 0x00)))
+  runIn(5, "poll")
 }
 
 void setAssociation() {
@@ -344,6 +347,17 @@ void setAssociation() {
   if (assocSet.size() > 0) {
      sendCommands(assocSet)
   }
+}
+
+void poll() {
+  logger "info", "poll()"
+  List<hubitat.zwave.Command> cmds=[
+    secureCmd(zwave.meterV4.meterGet(scale: 0x00)),
+    secureCmd(zwave.meterV4.meterGet(scale: 0x02)),
+    secureCmd(zwave.meterV4.meterGet(scale: 0x04)),
+    secureCmd(zwave.meterV4.meterGet(scale: 0x05))
+  ]
+  sendCommands(cmds, 500)
 }
 
 void resetPower() {
