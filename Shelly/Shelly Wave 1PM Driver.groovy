@@ -1,19 +1,10 @@
 /**
- *  Shelly Wave 1PM QNSW-0001P16EU
+ *  Shelly Wave 1PM QNSW-0001P16EU, Wave 1 QNSW-001X16EU, Wave 1PM Mini QMSW-0A1P8EU, and Wave 1 Mini QMSW-0A1X8EU
  *  Device Handler
- *  Version 1.1
- *  Date: 9.1.2024
+ *  Version 1.2
+ *  Date: 3.12.2024
  *  Author: Rene Boer
  *  Copyright , none free to use
- *
- * |---------------------------- DEVICE HANDLER FOR QUBINO SMART PLUG 16A Z-WAVE DEVICE -------------------------------------------------------|
- *    The handler supports all unsecure functions of the Qubino Smart Plug 16A device. Configuration parameters and
- *    association groups can be set in the device's preferences screen, but they are applied on the device only after
- *    pressing the 'Set configuration' and 'Set associations' buttons on the bottom of the details view.
- *
- *    This device handler supports data values that are currently not implemented as capabilities, so custom attribute
- *    states are used. Please use a SmartApp that supports custom attribute monitoring with this device in your rules.
- * |-----------------------------------------------------------------------------------------------------------------------------------------------|
  *
  *  TO-DO:
  *
@@ -21,10 +12,11 @@
  *  0.1: First release
  *  1.0: Added firmware targets to version report.
  *  1.1: Added reboot function. Use for troubleshooting only. Moved setting device configuration parameters for update function. Removed Notification report, not officially supported. Added FirmwareUpdate report handler.  Fix for powerLow status value.
+ *  1.2: Added Wave 1 Mini fingerprint. Also should support Wave 1 and Wave 1PM Mini as they have same functions, but not tested. Power & Energy meter only requested for PM devices. Enabled paramters 23 & 25
  */
 import groovy.transform.Field
 
-@Field String VERSION = "1.1"
+@Field String VERSION = "1.2"
 
 metadata {
   definition(name: 'Shelly Wave 1PM', namespace: "reneboer", author: "Rene Boer", importUrl: "https://raw.githubusercontent.com/reneboer/Hubitat/main/Shelly/Shelly%20Wave%201PM%20Driver.groovy") {
@@ -41,8 +33,12 @@ metadata {
     command "resetPower" //command to issue Meter Reset commands to reset accumulated power measurements
     command "remoteReboot", [[name: "Reboot device*", type: "ENUM", description: "Reboot the device. Use for troubleshooting only.", default: "Please select", constraints: ["Please select", "Do nothing", "Perform reboot"]]] // Send remote reboot command to device
 
+    fingerprint mfr: "1120", prod: "2", deviceId: "131", deviceJoinName: "Shelly Wave 1"
     fingerprint mfr: "1120", prod: "2", deviceId: "132", inClusters: "0x5E,0x98,0x9F,0x55,0x6C", secureInClusters: "0x86,0x73,0x87,0x7A,0x5A,0x8E,0x59,0x85,0x70,0x25,0x71,0x32,0x72", deviceJoinName: "Shelly Wave 1PM"
     fingerprint mfr: "1120", prod: "2", deviceId: "132", inClusters: "0x5E,0x98,0x9F,0x55,0x86,0x6C,0x73,0x87,0x7A,0x5A,0x8E,0x59,0x85,0x70,0x25,0x71,0x32,0x72", deviceJoinName: "Shelly Wave 1PM"
+    fingerprint mfr: "1120", prod: "2", deviceId: "142", inClusters: "0x5E,0x98,0x9F,0x55,0x86,0x6C,0x73,0x60,0x87,0x7A,0x5A,0x8E,0x59,0x85,0x71,0x72,0x70,0x25", deviceJoinName: "Shelly Wave 1 Mini" // Only Power settings not applicable.
+    fingerprint mfr: "1120", prod: "2", deviceId: "142", inClusters: "0x5E,0x98,0x9F,0x55,0x6C", secureInClusters: "0x86,0x73,0x60,0x87,0x7A,0x5A,0x8E,0x59,0x85,0x71,0x72,0x70,0x25", deviceJoinName: "Shelly Wave 1 Mini" 
+    fingerprint mfr: "1120", prod: "2", deviceId: "143", deviceJoinName: "Shelly Wave 1PM Mini"
   }
 
   preferences {
@@ -55,6 +51,7 @@ metadata {
 @Field static Map CMD_CLASS_VERS = [
   0x85: 2, // COMMAND_CLASS_ASSOCIATION_V2
   0x59: 3, // COMMAND_CLASS_ASSOCIATION_GRP_INFO_V3
+//  0x60: 3, // COMMAND_CLASS_MULTI_CHANNEL_V3
 //  0x5A: 1, // COMMAND_CLASS_DEVICE_RESET_LOCALLY_V1
   0x7A: 5, // COMMAND_CLASS_FIRMWARE_UPDATE_MD_V5
 //  0x87: 3, // COMMAND_CLASS_INDICATOR_V3,
@@ -110,24 +107,24 @@ metadata {
           required: false
         ], 
         parameterSize: 2],
-//  23: [input: [name: "configParam23", 
-//          title: "Contact type - NO/NC", 
-//          description:"The set value determines the relay contact type for output O (O1). The relay contact type can be normally open (NO) or normally closed (NC).", 
-//          type: "enum",
-//          defaultValue: 0, 
-//          options:[0:"Normal Open", 1:"Normal Closed"], 
-//          required: false
-//        ], 
-//        parameterSize: 1],
-//  25: [input: [name: "configParam25", 
-//          title: "Set timer units to s or ms for O (O1)", 
-//          description:"Set the timer in seconds or milliseconds in Parameters No. 19, 20.", 
-//          type: "enum",
-//          defaultValue: 0, 
-//          options:[0:"Timer set in seconds", 1:"Timer set in milliseconds"], 
-//          required: false
-//        ], 
-//        parameterSize: 1],
+  23: [input: [name: "configParam23", 
+          title: "Contact type - NO/NC", 
+          description:"The set value determines the relay contact type for output O (O1). The relay contact type can be normally open (NO) or normally closed (NC).", 
+          type: "enum",
+          defaultValue: 0, 
+          options:[0:"Normal Open", 1:"Normal Closed"], 
+          required: false
+        ], 
+        parameterSize: 1],
+  25: [input: [name: "configParam25", 
+          title: "Set timer units to s or ms for O (O1)", 
+          description:"Set the timer in seconds or milliseconds in Parameters No. 19, 20.", 
+          type: "enum",
+          defaultValue: 0, 
+          options:[0:"Timer set in seconds", 1:"Timer set in milliseconds"], 
+          required: false
+        ], 
+        parameterSize: 1],
   36: [input: [name: "configParam36", 
           title: "Power report on change", 
           description:"The minimum change in consumed power that will result in sending a new report.<br/>0 Disabled, 1-100%", 
@@ -212,10 +209,13 @@ void updated() {
 void refresh() {
   logger "info", "refresh()"
   List<hubitat.zwave.Command> cmds=[
-    secureCmd(zwave.meterV6.meterGet(scale: 0x00)),
-    secureCmd(zwave.meterV6.meterGet(scale: 0x02)),
     secureCmd(zwave.switchBinaryV2.switchBinaryGet())
   ]
+  // See if we have a PM device
+  if (device.getDataValue("deviceId") == "132" || device.getDataValue("deviceId") == "143"){
+    cmds.add(secureCmd(zwave.meterV6.meterGet(scale: 0x00)))
+    cmds.add(secureCmd(zwave.meterV6.meterGet(scale: 0x02)))
+  }
   configParams.each { param, data ->
     cmds.add(secureCmd(zwave.configurationV4.configurationGet(parameterNumber: param.toInteger())))
   }

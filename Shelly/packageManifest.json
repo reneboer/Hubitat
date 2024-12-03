@@ -1,10 +1,10 @@
 {
  "packageName":"Shelly Wave 1PM Driver",
  "author":"Rene Boer",
- "version":"1.1",
+ "version":"1.2",
  "minimumHEVersion":"2.3.6",
- "dateReleased":"2024-1-14",
- "releaseNotes":"Added reboot function. Use for troubleshooting only. Moved setting device configuration parameters for update function. Removed Notification report, not officially supported. Added FirmwareUpdate report handler.  Fix for powerLow status value.",
+ "dateReleased":"2024-12-3",
+ "releaseNotes":"1.2 Added support for Shelly Wave 1, Wave 1 Mini and Wave 1PM Mini\n1.1: Added reboot function. Use for troubleshooting only. Moved setting device configuration parameters for update function. Removed Notification report, not officially supported. Added FirmwareUpdate report handler.  Fix for powerLow status value.\n1.0: Added firmware targets to version report.",
  "documentationLink":"https://github.com/reneboer/Hubitat/blob/main/Shelly/README.md",
  "communityLink":"https://community.hubitat.com/t/release-shelly-wave-1pm-driver/130863",
  "drivers": [
