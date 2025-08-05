@@ -1,7 +1,7 @@
 /**
  *  Qubino DIN Dimmer no Temp
  *  Device Handler 
- *  Date: 13.12.2023
+ *  Date: 04.08.2025
  *  Author: Kristjan Jam&scaron;ek (Kjamsek), Goap d.o.o.
  *  Post V1.0 updates: Rene Boer
  *  Copyright 2017 Kristjan Jam&scaron;ek
@@ -43,10 +43,12 @@
  *  1.4 : Current device parameters will be populated on install or updated on refresh.
  *  1.5 : Fix for bool type parameters.
  *  1.6 : Moved setting device configuration parameters for update function. Fix for powerLow status value.
+ *  1.7 : removed config commands from refresh, added in configure.
+ *  1.8 : Changed meterGet to V3 as V4 does not return a response for energy (anymore?). Added config readback after update and config.
  */
 import groovy.transform.Field
 
-@Field String VERSION = "1.6"
+@Field String VERSION = "1.8"
 
 metadata {
   definition (name: "Qubino DIN Dimmer no Temp", namespace: "reneboer", author: "Rene Boer", importUrl: "https://raw.githubusercontent.com/reneboer/Hubitat/main/Qubino/Qubino%20DIN%20Dimmer%20Driver%20no%20Temp.groovy") {
@@ -61,7 +63,7 @@ metadata {
     attribute "powerHigh", "number"
     attribute "powerLow", "number"
 
-    command "resetPower" //command to issue Meter Reset commands to reset accumulated pwoer measurements
+    command "resetPower" //command to issue Meter Reset commands to reset accumulated power measurements
 	
 	fingerprint mfr:"0159", prod:"0001", deviceId:"0052", inClusters:"0x5E,0x86,0x5A,0x72,0x73,0x98,0x27,0x25,0x26,0x32,0x71,0x85,0x8E,0x59,0x70", outClusters:"0x26", deviceJoinName: "Qubino DIN Dimmer"
   }
@@ -78,7 +80,7 @@ metadata {
   0x8E: 3, // Multi Channel Association
   0x85: 2, // Association 
   0x71: 5, // Notification 
-  0x32: 4, // Meter
+  0x32: 3, // Meter
   0x26: 4, // Switch Multilevel
   0x25: 1, // Switch Binary
   0x27: 1, // Switch All
@@ -129,20 +131,26 @@ void updated() {
       cmds.add(configCmd(param, data.parameterSize, settings[data.input.name]))
     }
   }
+  // Read back new config
+  configParams.each { param, data ->
+    if (settings[data.input.name] != null) {
+      cmds.add(secureCmd(zwave.configurationV2.configurationGet(parameterNumber: param.toInteger())))
+    }
+  }
   sendCommands(cmds, 500)
 }
 
 void refresh() {
   logger "info", "refresh()"
   List<hubitat.zwave.Command> cmds=[
-    secureCmd(zwave.meterV4.meterGet(scale: 0x00)),
-    secureCmd(zwave.meterV4.meterGet(scale: 0x02)),
-    secureCmd(zwave.switchMultilevelV4.switchMultilevelGet()),
-    secureCmd(zwave.notificationV8.notificationGet(notificationType: hubitat.zwave.commands.notificationv8.NotificationGet.NOTIFICATION_TYPE_POWER_MANAGEMENT))
+    secureCmd(zwave.meterV3.meterGet(scale: 0x02)),
+    secureCmd(zwave.meterV3.meterGet(scale: 0x00))
+//    secureCmd(zwave.switchMultilevelV4.switchMultilevelGet())
+//    secureCmd(zwave.notificationV8.notificationGet(notificationType: hubitat.zwave.commands.notificationv8.NotificationGet.NOTIFICATION_TYPE_POWER_MANAGEMENT))
   ]
-  configParams.each { param, data ->
-    cmds.add(secureCmd(zwave.configurationV2.configurationGet(parameterNumber: param.toInteger())))
-  }
+//  configParams.each { param, data ->
+//    cmds.add(secureCmd(zwave.configurationV2.configurationGet(parameterNumber: param.toInteger())))
+//  }
   sendCommands(cmds, 500)
 }
 
@@ -155,7 +163,18 @@ void configure() {
   if (!device.getDataValue("MSR")) {
     cmds.add(secureCmd(zwave.manufacturerSpecificV2.manufacturerSpecificGet()))
   }
-  runIn (cmds.size(), refresh)
+  configParams.each { param, data ->
+    if (settings[data.input.name] != null) {
+      cmds.add(configCmd(param, data.parameterSize, settings[data.input.name]))
+    }
+  }
+  // Read back new config
+  configParams.each { param, data ->
+    if (settings[data.input.name] != null) {
+      cmds.add(secureCmd(zwave.configurationV2.configurationGet(parameterNumber: param.toInteger())))
+    }
+  }
+//  runIn (cmds.size(), refresh)
   sendCommands(cmds, 500)
 }
 
@@ -257,7 +276,7 @@ void zwaveEvent(hubitat.zwave.commands.switchmultilevelv4.SwitchMultilevelReport
   sendEventWrapper(name:"level", value: cmd.value, unit:"%", descriptionText:"${device.displayName} dimmed to ${cmd.value==255 ? 100 : cmd.value}%")
 }
 
-void zwaveEvent(hubitat.zwave.commands.meterv4.MeterReport cmd) {
+void zwaveEvent(hubitat.zwave.commands.meterv3.MeterReport cmd) {
   logger("trace", "zwaveEvent(MeterReport) - cmd: ${cmd.inspect()}")
   switch(cmd.scale){
 	case 0:
@@ -410,6 +429,7 @@ private void sendEventWrapper(Map prop) {
   String cv = device.currentValue(prop.name)
   Boolean changed = (prop.isStateChange == true) || ((cv?.toString() != prop.value?.toString()) ? true : false)
   if (changed) sendEvent(prop)
+//  sendEvent(prop)
   if (prop?.descriptionText) {
     if (txtEnable && changed) {
       log.info "${device.displayName} ${prop.descriptionText}"
