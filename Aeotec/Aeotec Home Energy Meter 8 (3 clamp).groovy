@@ -41,7 +41,7 @@ metadata {
         name: 'Aeotec Home Energy Meter 8 (3 clamp)',
         namespace: 'reneboer',
         author: 'Rene Boer',
-        importUrl: "https://raw.githubusercontent.com/reneboer/Hubitat/main/Aeotec/Aeotec%20HEM%208%203%20Clamps%20Driver.groovy"
+        importUrl: "https://raw.githubusercontent.com/reneboer/Hubitat/refs/heads/main/Aeotec/Aeotec%20Home%20Energy%20Meter%208%20(3%20clamp).groovy"
     ) {
         capability 'Refresh'
 //        capability 'Initialize'
@@ -264,12 +264,12 @@ metadata {
 	[key: "percentageClamp1Production", title: "Clamp 1 Production percentage", type: "number", num: 17, size: 1, def: 20, min: 1, max: 100, description: "Percentage change in Production wattage to induce an automatic report (Clamp 1)."], 
 	[key: "percentageClamp2Production", title: "Clamp 2 Production percentage", type: "number", num: 18, size: 1, def: 20, min: 1, max: 100, description: "Percentage change in Production wattage to induce an automatic report (Clamp 2)."], 
 	[key: "percentageClamp3Production", title: "Clamp 3 Production percentage", type: "number", num: 19, size: 1, def: 20, min: 1, max: 100, description: "Percentage change in Production wattage to induce an automatic report (Clamp 3)."],
-	[key: "group1ReportValuesConsumption", title: "Group 1 Reports Consumption", type: "number", num: 101, size: 4, def: 50529027, min: 1, max: 4294967295, description: "Configure which report needs to be sent in Consumption Report group 1"],
-	[key: "group2ReportValuesConsumption", title: "Group 2 Reports Consumption", type: "number", num: 102, size: 4, def: 202116108, min: 1, max: 4294967295, description: "Configure which report needs to be sent in Consumption Report group 2"],
-	[key: "group3ReportValuesConsumption", title: "Group 3 Reports Consumption", type: "number", num: 103, size: 4, def: 4042322160, min: 1, max: 4294967295, description: "Configure which report needs to be sent in Consumption Report group 3"],
-	[key: "group1ReportValuesProduction", title: "Group 1 Reports Production", type: "number", num: 104, size: 4, def: 50529027, min: 1, max: 4294967295, description: "Configure which report needs to be sent in Production Report group 1"],
-	[key: "group2ReportValuesProduction", title: "Group 2 Reports Production", type: "number", num: 105, size: 4, def: 202116108, min: 1, max: 4294967295, description: "Configure which report needs to be sent in Production Report group 2"],
-	[key: "group3ReportValuesProduction", title: "Group 3 Reports Production", type: "number", num: 106, size: 4, def: 4042322160, min: 1, max: 4294967295, description: "Configure which report needs to be sent in Production Report group 3"],
+	[key: "group1ReportValuesConsumption", title: "Group 1 Reports Consumption", type: "number", num: 101, size: 4, def: 50529027, min: 0, max: 4294967295, description: "Configure which report needs to be sent in Consumption Report group 1"],
+	[key: "group2ReportValuesConsumption", title: "Group 2 Reports Consumption", type: "number", num: 102, size: 4, def: 202116108, min: 0, max: 4294967295, description: "Configure which report needs to be sent in Consumption Report group 2"],
+	[key: "group3ReportValuesConsumption", title: "Group 3 Reports Consumption", type: "number", num: 103, size: 4, def: 4042322160, min: 0, max: 4294967295, description: "Configure which report needs to be sent in Consumption Report group 3"],
+	[key: "group1ReportValuesProduction", title: "Group 1 Reports Production", type: "number", num: 104, size: 4, def: 50529027, min: 0, max: 4294967295, description: "Configure which report needs to be sent in Production Report group 1"],
+	[key: "group2ReportValuesProduction", title: "Group 2 Reports Production", type: "number", num: 105, size: 4, def: 202116108, min: 0, max: 4294967295, description: "Configure which report needs to be sent in Production Report group 2"],
+	[key: "group3ReportValuesProduction", title: "Group 3 Reports Production", type: "number", num: 106, size: 4, def: 4042322160, min: 0, max: 4294967295, description: "Configure which report needs to be sent in Production Report group 3"],
 	[key: "group1ReportIntervalConsumption", title: "Group 1 Consumption time interval", type: "number", num: 111, size: 4, def: 3600, min: 1, max: 4294967295, description: "Set the interval time of sending report in Consumption Report group 1"],
 	[key: "group2ReportIntervalConsumption", title: "Group 2 Consumption time interval", type: "number", num: 112, size: 4, def: 7200, min: 1, max: 4294967295, description: "Set the interval time of sending report in Consumption Report group 2"],
 	[key: "group3ReportIntervalConsumption", title: "Group 3 Consumption time interval", type: "number", num: 113, size: 4, def: 7200, min: 1, max: 4294967295, description: "Set the interval time of sending report in Consumption Report group 3"],
@@ -282,7 +282,8 @@ metadata {
 void installed() {
     logInfo "installed(${VERSION})"
   	runIn (10, 'getConfig')  // Get current device config after installed.
-    runIn (15, 'createChildDevices')
+  	runIn (15, 'refresh')  // Get the measurements from the device.
+//    runIn (15, 'createChildDevices')  // Will create with wrong names if done before device name is entered by user.
 }
 // Handle device removal
 def uninstalled() {
