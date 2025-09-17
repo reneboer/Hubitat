@@ -1,0 +1,24 @@
+{
+ "packageName":"Aeotec Home Energy Meter 8 (3 clamp)",
+ "author":"Rene Boer",
+ "version":"1.0",
+ "minimumHEVersion":"2.4.0",
+ "dateReleased":"2025-09-17",
+ "releaseNotes":"First release.",
+ "documentationLink":"reneboer",
+ "communityLink":"https://community.hubitat.com/t/aeotec-home-energy-meter-8-zwa046/144456/43",
+ "drivers": [
+  {
+     "id":"668127c5-e495-4d32-b2a4-77b8ff6a1d79",
+     "name":"Aeotec Home Energy Meter 8 Child Device",
+     "location":"https://raw.githubusercontent.com/reneboer/Hubitat/refs/heads/main/Aeotec/Aeotec%20HEM8%20Child%20Device.groovy",
+     "required":true
+  },
+  {
+     "id":"f8bed53f-a14f-449d-bd9e-dbec9fb3154f",
+     "name":"Aeotec Home Energy Meter 8 (3 clamp)",
+     "location":"https://raw.githubusercontent.com/reneboer/Hubitat/refs/heads/main/Aeotec/Aeotec%20Home%20Energy%20Meter%208%20(3%20clamp).groovy",
+     "required":true
+  }
+  ]
+}
