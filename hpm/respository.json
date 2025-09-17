@@ -38,6 +38,13 @@
 			"description": "Driver for Smart Switch 7 EU version by Aeotec."
 		},
 		{
+			"name": "Aeotec Home Energy Meter 8 (3 clamp) Driver",
+			"category": "Integrations",
+			"tags": [ "Energy Monitoring", "ZWave" ],
+			"location": "https://raw.githubusercontent.com/reneboer/Hubitat/main/Aeotec/packageManifestHEM8.json",
+			"description": "Driver for Aeotec Home Energy Meter 8 (3 clamp) version by Aeotec."
+		},
+		{
 			"name": "Shelly Wave 1PM Driver",
 			"category": "Integrations",
 			"tags": [ "Lights & Switches", "ZWave" ],
