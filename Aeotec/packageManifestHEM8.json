@@ -6,7 +6,7 @@
  "dateReleased":"2025-09-17",
  "releaseNotes":"First release.",
  "documentationLink":"reneboer",
- "communityLink":"https://community.hubitat.com/t/aeotec-home-energy-meter-8-zwa046/144456/43",
+ "communityLink":"https://community.hubitat.com/t/driver-aeotec-home-energy-meter-8-3-clamp-zwa046/157194",
  "drivers": [
   {
      "id":"668127c5-e495-4d32-b2a4-77b8ff6a1d79",

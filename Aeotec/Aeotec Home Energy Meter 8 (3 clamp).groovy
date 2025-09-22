@@ -144,7 +144,7 @@ metadata {
 
     preferences {
       	input name: 'parentReportType', type: 'enum', title: 'Parent Report Type', defaultValue: 'C', options: ['C': "Consumption (EP7)", 'P': "Production (EP8)"], required: true, description: "Update parent values with Consumption or Production values"
-      	input name: 'includeProduction', type: 'enum', title: 'Include production end points?', defaultValue: '0', options: ['0': "No", '1': "Yes"], required: true, description: "Include reporting and child devices for reporting end points."
+      	input name: 'includeProduction', type: 'enum', title: 'Include production end points', defaultValue: '0', options: ['0': "No", '1': "Yes"], required: true, description: "Include reporting and child devices for reporting end points."
       	input name: 'includeSpecials', type: 'enum', title: 'Include special reports', defaultValue: '0', options: ['0': "No", '1': "Yes"], required: true, description: "Include reporting for kVarh, kVar, kVah and Power Factor on Refresh."
 
   		parameterMap.each {
