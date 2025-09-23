@@ -1,8 +1,8 @@
 /**
  *  Aeotec Smart Switch 7 EU ZW175-C16
  *  Device Handler
- *  Version 1.0
- *  Date: 14.1.2024
+ *  Version 1.2
+ *  Date: 23.9.2025
  *  Author: Rene Boer
  *  Copyright , none free to use
  *
@@ -21,10 +21,11 @@
  *  0.1 : First release
  *  1.0 : Added device Clock update when off on config. Added firmware targets to version report. Moved setting device configuration parameters for update function. Added FirmwareUpdate report handler. Fixed Reset Device function.
  *  1.1 : Add power poll when turned on or off.
+ *  1.2 : Updated parameter 91 description to match V1.3 firmware
  */
 import groovy.transform.Field
 
-@Field String VERSION = "1.1"
+@Field String VERSION = "1.2"
 
 metadata {
   definition(name: 'Aeotec Smart Switch 7 EU', namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/Aeotec/Aeotec%20Smart%20Swtich%207%20EU%20Driver.groovy") {
@@ -177,7 +178,7 @@ metadata {
         parameterSize: 4],
   91: [input: [name: "configParam91", 
           title: "Threshold Power", 
-          description:"Threshold Power (W) for inducing automatic report when Watt become 5% more or less than the value.<br/>0 Disabled, 1-2300W", 
+          description:"Threshold Power (W) If Watt passes the threshold setting by + or -, a Watt report will be sent to update its value.<br/>0 Disabled, 1-2300W", 
           type: "number", 
           defaultValue: 0, 
           range: "0..2300", 
