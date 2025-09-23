@@ -6,6 +6,9 @@ To manually include press button twice slowly. First press stops smart start, se
 
 Be careful with the Device Reset function. The Factory reset option will also remove the device from your Z-Wave network and needs to be re-included.
 
+Driver version 1.2 has the description of parameter 91 updated to match the Switch V1.03 firmware found at https://aeotec.freshdesk.com/support/solutions/articles/6000270359-update-smart-switch-7-eu-v1-03-zw175-c-
+
+
 # Driver for Aeotec Home Energy Meter 8 3 clamp version
 
 Supports secure and unsecure inclusion.
