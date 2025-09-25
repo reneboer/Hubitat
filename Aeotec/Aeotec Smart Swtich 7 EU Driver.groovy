@@ -53,7 +53,6 @@ metadata {
     fingerprint mfr:"0345", prod:"0002", deviceId: "0084", inClusters:"0x5E,0x85,0x59,0x55,0x70,0x2C,0x2B,0x81,0x71,0x32,0x25,0x33,0x26,0x86,0x72,0x5A,0x22,0x75,0x73,0x98,0x9F,0x6C,0x7A", deviceJoinName: "Aeotec Smart Switch 7", model:"Smart Switch 7", manufacturer:"Aeotec"
   }
   preferences {
-    configParams.each { input it.value.input }
     parameterMap.eachWithIndex {pnum, param, i ->
      	input (
      		name: param.key,
