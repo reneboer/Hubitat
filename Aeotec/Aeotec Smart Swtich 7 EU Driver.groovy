@@ -61,7 +61,7 @@ metadata {
      		options: param.options,
      		range: (param.min != null && param.max != null) ? "${param.min}..${param.max}" : null,
      		defaultValue: param.def,
-        description: (param.desc != null) ? "${param.desc}" : null,
+        	description: param.desc,
      		required: param.required
      	)
     }
@@ -538,4 +538,5 @@ private void runCommandsWithInterstitialDelay(List<hubitat.zwave.Command> comman
 private void runCommand(hubitat.zwave.Command command) {
     logDebug "Entering runCommand()"
     sendHubCommand(new hubitat.device.HubAction(zwaveSecureEncap(command), hubitat.device.Protocol.ZWAVE))
+
 }
