@@ -1,10 +1,10 @@
 {
  "packageName":"Aeotec Home Energy Meter 8 (3 clamp)",
  "author":"Rene Boer",
- "version":"1.0",
+ "version":"1.1",
  "minimumHEVersion":"2.4.0",
- "dateReleased":"2025-09-17",
- "releaseNotes":"First release.",
+ "dateReleased":"2025-09-25",
+ "releaseNotes":"1.1: Some code cleanup and enhancements.\n1.0: First release.",
  "documentationLink":"reneboer",
  "communityLink":"https://community.hubitat.com/t/driver-aeotec-home-energy-meter-8-3-clamp-zwa046/157194",
  "drivers": [

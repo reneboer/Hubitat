@@ -27,11 +27,11 @@
 *				Only include measurements for kVarh, kVar, kVah and Power Factor when configured. Note that unsolicitated reports from HEM for these measurements will be handled.
 *				Added all device parameters for configuration.
 *				Use of CurrentMeter capability that reports amperage not current, so renamed all as appropriate.
-*
+*     - 1.1: Some code cleanup and enhancements.
 */
 
 import groovy.transform.Field
-@Field String VERSION = "1.0"
+@Field String VERSION = "1.1"
 
 //
 // Driver Definition
@@ -147,18 +147,18 @@ metadata {
       	input name: 'includeProduction', type: 'enum', title: 'Include production end points', defaultValue: '0', options: ['0': "No", '1': "Yes"], required: true, description: "Include reporting and child devices for reporting end points."
       	input name: 'includeSpecials', type: 'enum', title: 'Include special reports', defaultValue: '0', options: ['0': "No", '1': "Yes"], required: true, description: "Include reporting for kVarh, kVar, kVah and Power Factor on Refresh."
 
-  		parameterMap.each {
-        	input (
-          		name: it.key,
-          		title: "${it.num}. ${it.title}",
-          		type: it.type,
-          		options: it.options,
-          		range: (it.min != null && it.max != null) ? "${it.min}..${it.max}" : null,
-          		defaultValue: it.def,
-                description: (it.description != null) ? "${it.description}" : null,
-          		required: false
-        	)
-      	}
+        parameterMap.eachWithIndex {pnum, param, i ->
+          input (
+            name: param.key,
+            title: "${pnum}. ${param.title}",
+            type: param.type,
+            options: param.options,
+            range: (param.min != null && param.max != null) ? "${param.min}..${param.max}" : null,
+            defaultValue: param.def,
+            description: param.desc,
+            required: param.required
+          )
+        }
       	input name: 'logEnable', type: 'bool', title: 'Enable Debug Logging', defaultValue: false, required: true
         input name: 'txtEnable', type: 'bool', title: 'Enable description Text logging', defaultValue: false, required: true
     }
@@ -227,55 +227,88 @@ metadata {
     9: [type: 'C', clamp: 0, scales: [0,2]], // Total calculated consumption minus production
     10: [type: 'P', clamp: 0, scales: [0,2]], // Total calculated consumption minus production
 ]
-    
+
+// Lists all supported by device, unhandled by this driver are commented out.
 @Field static commandClasses = [
-    0x5E: 2, // COMMAND_CLASS_ZWAVEPLUS_INFO V2COMMAND_CLASS_VERSION V2
-    0x72: 2, // COMMAND_CLASS_MANUFACTURER_SPECIFIC V2
-    0x86: 3, // COMMAND_CLASS_VERSION_V3
-    0x32: 5, // COMMAND_CLASS_METER V5/6?
-    0x56: 1, // COMMAND_CLASS_CRC_16_ENCAP V1
+    0x5E: 2, // COMMAND_CLASS_ZWAVEPLUS_INFO V2
+    0x32: 5, // COMMAND_CLASS_METER V5 Device supports V6, but Hubiata does not yet.
     0x60: 4, // COMMAND_CLASS_MULTI_CHANNEL V4
-    0x8E: 3, // COMMAND_CLASS_MULTI_CHANNEL_ASSOCIATION_V3
     0x70: 4, // COMMAND_CLASS_CONFIGURATION V4
-    0x59: 1, // COMMAND_CLASS_ASSOCIATION_GRP_INFO V1
+//    0x22: 1, // COMMAND_CLASS_APPLICATION_STATUS V1
     0x85: 2, // COMMAND_CLASS_ASSOCIATION V2
-    0x7A: 2, // COMMAND_CLASS_FIRMWARE_UPDATE_MD  V2
-    0x73: 1, // COMMAND_CLASS_POWERLEVEL V1
-    0x98: 1, // COMMAND_CLASS_SECURITY V1
-    //0xEF: 1, // COMMAND_CLASS_MARK V1
-    0x5A: 1 // COMMAND_CLASS_DEVICE_RESET_LOCALLY V1
+    0x8E: 3, // COMMAND_CLASS_MULTI_CHANNEL_ASSOCIATION V3
+    0x59: 3, // COMMAND_CLASS_ASSOCIATION_GRP_INFO V3
+//    0x55: 2, // COMMAND_CLASS_TRANSPORT_SERVICE V2
+    0x86: 3, // COMMAND_CLASS_VERSION V3
+    0x72: 2, // COMMAND_CLASS_MANUFACTURER_SPECIFIC V2
+//    0x5A: 1, // COMMAND_CLASS_DEVICE_RESET_LOCALLY V1
+//    0x87: 3, // COMMAND_CLASS_INDICATOR V3
+//    0x73: 1, // COMMAND_CLASS_POWERLEVEL V1
+//    0x98: 1, // COMMAND_CLASS_SECURITY V1
+//    0x9F: 1, // COMMAND_CLASS_SECURITY_2 V1
+    0x6C: 1, // COMMAND_CLASS_SUPERVISION V1
+    0x7A: 5  // COMMAND_CLASS_FIRMWARE_UPDATE_MD V5
 ]
 
 @Field static parameterMap = [
-	[key: "reportingThreshold", title: "Reporting Threshold", type: "enum", options: [0: "0 - disable", 1: "1 - enable"], num: 3, size: 1, def: 1, min: 0, max: 1, description: "Enable selective reporting only when power change reaches a certain threshold."],
-	[key: "thresholdTotalConsumption", title: "Total Consumption threshold", type: "number", num: 4, size: 2, def: 50, min: 5, max: 60000, description: "Threshold change in Consumption wattage to induce an automatic report (Whole HEM)."], 
-	[key: "thresholdClamp1Consumption", title: "Clamp 1 Consumption threshold", type: "number", num: 5, size: 2, def: 50, min: 5, max: 60000, description: "Threshold change in Consumption wattage to induce an automatic report (Clamp 1)."], 
-	[key: "thresholdClamp2Consumption", title: "Clamp 2 Consumption threshold", type: "number", num: 6, size: 2, def: 50, min: 5, max: 60000, description: "Threshold change in Consumption wattage to induce an automatic report (Clamp 2)"], 
-	[key: "thresholdClamp3Consumption", title: "Clamp 3 Consumption threshold", type: "number", num: 7, size: 2, def: 50, min: 5, max: 60000, description: "Threshold change in Consumption wattage to induce an automatic report (Clamp 3)"], 
-	[key: "thresholdTotalProduction", title: "Total Production threshold", type: "number", num: 8, size: 2, def: 50, min: 5, max: 60000, description: "Threshold change in Production wattage to induce an automatic report (Whole HEM)."], 
-	[key: "thresholdClamp1Production", title: "Clamp 1 Production threshold", type: "number", num: 9, size: 2, def: 50, min: 5, max: 60000, description: "Threshold change in Production wattage to induce an automatic report (Clamp 1)."], 
-	[key: "thresholdClamp2Production", title: "Clamp 2 Production threshold", type: "number", num: 10, size: 2, def: 50, min: 5, max: 60000, description: "Threshold change in Production wattage to induce an automatic report (Clamp 2)."], 
-	[key: "thresholdClamp3Production", title: "Clamp 3 Production threshold", type: "number", num: 11, size: 2, def: 50, min: 5, max: 60000, description: "Threshold change in Production wattage to induce an automatic report (Clamp 3)."], 
-	[key: "percentageTotalConsumption", title: "Total Consumption percentage", type: "number", num: 12, size: 1, def: 20, min: 1, max: 100, description: "Percentage change in Consumption wattage to induce an automatic report (Whole HEM)."], 
-	[key: "percentageClamp1Consumption", title: "Clamp 1 Consumption percentage", type: "number", num: 13, size: 1, def: 20, min: 1, max: 100, description: "Percentage change in Consumption wattage to induce an automatic report (Clamp 1)."], 
-	[key: "percentageClamp2Consumption", title: "Clamp 2 Consumption percentage", type: "number", num: 14, size: 1, def: 20, min: 1, max: 100, description: "Percentage change in Consumption wattage to induce an automatic report (Clamp 2)."], 
-	[key: "percentageClamp3Consumption", title: "Clamp 3 Consumption percentage", type: "number", num: 15, size: 1, def: 20, min: 1, max: 100, description: "Percentage change in Consumption wattage to induce an automatic report (Clamp 3)."],
-	[key: "percentageTotalProduction", title: "Total Production percentage", type: "number", num: 16, size: 1, def: 20, min: 1, max: 100, description: "Percentage change in Production wattage to induce an automatic report (Whole HEM)."], 
-	[key: "percentageClamp1Production", title: "Clamp 1 Production percentage", type: "number", num: 17, size: 1, def: 20, min: 1, max: 100, description: "Percentage change in Production wattage to induce an automatic report (Clamp 1)."], 
-	[key: "percentageClamp2Production", title: "Clamp 2 Production percentage", type: "number", num: 18, size: 1, def: 20, min: 1, max: 100, description: "Percentage change in Production wattage to induce an automatic report (Clamp 2)."], 
-	[key: "percentageClamp3Production", title: "Clamp 3 Production percentage", type: "number", num: 19, size: 1, def: 20, min: 1, max: 100, description: "Percentage change in Production wattage to induce an automatic report (Clamp 3)."],
-	[key: "group1ReportValuesConsumption", title: "Group 1 Reports Consumption", type: "number", num: 101, size: 4, def: 50529027, min: 0, max: 4294967295, description: "Configure which report needs to be sent in Consumption Report group 1"],
-	[key: "group2ReportValuesConsumption", title: "Group 2 Reports Consumption", type: "number", num: 102, size: 4, def: 202116108, min: 0, max: 4294967295, description: "Configure which report needs to be sent in Consumption Report group 2"],
-	[key: "group3ReportValuesConsumption", title: "Group 3 Reports Consumption", type: "number", num: 103, size: 4, def: 4042322160, min: 0, max: 4294967295, description: "Configure which report needs to be sent in Consumption Report group 3"],
-	[key: "group1ReportValuesProduction", title: "Group 1 Reports Production", type: "number", num: 104, size: 4, def: 50529027, min: 0, max: 4294967295, description: "Configure which report needs to be sent in Production Report group 1"],
-	[key: "group2ReportValuesProduction", title: "Group 2 Reports Production", type: "number", num: 105, size: 4, def: 202116108, min: 0, max: 4294967295, description: "Configure which report needs to be sent in Production Report group 2"],
-	[key: "group3ReportValuesProduction", title: "Group 3 Reports Production", type: "number", num: 106, size: 4, def: 4042322160, min: 0, max: 4294967295, description: "Configure which report needs to be sent in Production Report group 3"],
-	[key: "group1ReportIntervalConsumption", title: "Group 1 Consumption time interval", type: "number", num: 111, size: 4, def: 3600, min: 1, max: 4294967295, description: "Set the interval time of sending report in Consumption Report group 1"],
-	[key: "group2ReportIntervalConsumption", title: "Group 2 Consumption time interval", type: "number", num: 112, size: 4, def: 7200, min: 1, max: 4294967295, description: "Set the interval time of sending report in Consumption Report group 2"],
-	[key: "group3ReportIntervalConsumption", title: "Group 3 Consumption time interval", type: "number", num: 113, size: 4, def: 7200, min: 1, max: 4294967295, description: "Set the interval time of sending report in Consumption Report group 3"],
-	[key: "group1ReportIntervalProduction", title: "Group 1 Production time interval", type: "number", num: 114, size: 4, def: 3600, min: 1, max: 4294967295, description: "Set the interval time of sending report in Production Report group 1"],
-	[key: "group2ReportIntervalProduction", title: "Group 2 Production time interval", type: "number", num: 115, size: 4, def: 7200, min: 1, max: 4294967295, description: "Set the interval time of sending report in Production Report group 2"],
-	[key: "group3ReportIntervalProduction", title: "Group 3 Production time interval", type: "number", num: 116, size: 4, def: 7200, min: 1, max: 4294967295, description: "Set the interval time of sending report in Production Report group 3"]
+	3:  [ key: "reportingThreshold", title: "Reporting Threshold", type: "enum", options: [0: "0 - disable", 1: "1 - enable"], size: 1, def: 1, min: 0, max: 1, 
+        desc: "Enable selective reporting only when power change reaches a certain threshold."],
+	4:  [ key: "thresholdTotalConsumption", title: "Total Consumption threshold", type: "number", size: 2, def: 50, min: 5, max: 60000, 
+        desc: "Threshold change in Consumption wattage to induce an automatic report (Whole HEM)."], 
+	5:  [ key: "thresholdClamp1Consumption", title: "Clamp 1 Consumption threshold", type: "number", size: 2, def: 50, min: 5, max: 60000, 
+        desc: "Threshold change in Consumption wattage to induce an automatic report (Clamp 1)."], 
+	6:  [ key: "thresholdClamp2Consumption", title: "Clamp 2 Consumption threshold", type: "number", size: 2, def: 50, min: 5, max: 60000, 
+        desc: "Threshold change in Consumption wattage to induce an automatic report (Clamp 2)"], 
+	7:  [ key: "thresholdClamp3Consumption", title: "Clamp 3 Consumption threshold", type: "number", size: 2, def: 50, min: 5, max: 60000, 
+        desc: "Threshold change in Consumption wattage to induce an automatic report (Clamp 3)"], 
+	8:  [ key: "thresholdTotalProduction", title: "Total Production threshold", type: "number", size: 2, def: 50, min: 5, max: 60000, 
+        desc: "Threshold change in Production wattage to induce an automatic report (Whole HEM)."], 
+	9:  [ key: "thresholdClamp1Production", title: "Clamp 1 Production threshold", type: "number", size: 2, def: 50, min: 5, max: 60000, 
+        desc: "Threshold change in Production wattage to induce an automatic report (Clamp 1)."], 
+	10: [ key: "thresholdClamp2Production", title: "Clamp 2 Production threshold", type: "number", size: 2, def: 50, min: 5, max: 60000, 
+        desc: "Threshold change in Production wattage to induce an automatic report (Clamp 2)."], 
+	11: [ key: "thresholdClamp3Production", title: "Clamp 3 Production threshold", type: "number", size: 2, def: 50, min: 5, max: 60000, 
+        descr: "Threshold change in Production wattage to induce an automatic report (Clamp 3)."], 
+	12: [ key: "percentageTotalConsumption", title: "Total Consumption percentage", type: "number", size: 1, def: 20, min: 1, max: 100, 
+        desc: "Percentage change in Consumption wattage to induce an automatic report (Whole HEM)."], 
+	13: [ key: "percentageClamp1Consumption", title: "Clamp 1 Consumption percentage", type: "number", size: 1, def: 20, min: 1, max: 100, 
+        desc: "Percentage change in Consumption wattage to induce an automatic report (Clamp 1)."], 
+	14: [ key: "percentageClamp2Consumption", title: "Clamp 2 Consumption percentage", type: "number", size: 1, def: 20, min: 1, max: 100, 
+        desc: "Percentage change in Consumption wattage to induce an automatic report (Clamp 2)."], 
+	15: [ key: "percentageClamp3Consumption", title: "Clamp 3 Consumption percentage", type: "number", size: 1, def: 20, min: 1, max: 100, 
+        desc: "Percentage change in Consumption wattage to induce an automatic report (Clamp 3)."],
+	16: [ key: "percentageTotalProduction", title: "Total Production percentage", type: "number", size: 1, def: 20, min: 1, max: 100, 
+        desc: "Percentage change in Production wattage to induce an automatic report (Whole HEM)."], 
+	17: [ key: "percentageClamp1Production", title: "Clamp 1 Production percentage", type: "number", size: 1, def: 20, min: 1, max: 100, 
+        desc: "Percentage change in Production wattage to induce an automatic report (Clamp 1)."], 
+	18: [ key: "percentageClamp2Production", title: "Clamp 2 Production percentage", type: "number", size: 1, def: 20, min: 1, max: 100, 
+        desc: "Percentage change in Production wattage to induce an automatic report (Clamp 2)."], 
+	19: [ key: "percentageClamp3Production", title: "Clamp 3 Production percentage", type: "number", size: 1, def: 20, min: 1, max: 100, 
+        desc: "Percentage change in Production wattage to induce an automatic report (Clamp 3)."],
+	101:[ key: "group1ReportValuesConsumption", title: "Group 1 Reports Consumption", type: "number", size: 4, def: 50529027, min: 0, max: 4294967295, 
+        desc: "Configure which report needs to be sent in Consumption Report group 1"],
+	102:[ key: "group2ReportValuesConsumption", title: "Group 2 Reports Consumption", type: "number", size: 4, def: 202116108, min: 0, max: 4294967295, 
+        desc: "Configure which report needs to be sent in Consumption Report group 2"],
+	103:[ key: "group3ReportValuesConsumption", title: "Group 3 Reports Consumption", type: "number", size: 4, def: 4042322160, min: 0, max: 4294967295, 
+        desc: "Configure which report needs to be sent in Consumption Report group 3"],
+	104:[ key: "group1ReportValuesProduction", title: "Group 1 Reports Production", type: "number", size: 4, def: 50529027, min: 0, max: 4294967295, 
+        desc: "Configure which report needs to be sent in Production Report group 1"],
+	105:[ key: "group2ReportValuesProduction", title: "Group 2 Reports Production", type: "number", size: 4, def: 202116108, min: 0, max: 4294967295, 
+        desc: "Configure which report needs to be sent in Production Report group 2"],
+	106:[ key: "group3ReportValuesProduction", title: "Group 3 Reports Production", type: "number", size: 4, def: 4042322160, min: 0, max: 4294967295, 
+        desc: "Configure which report needs to be sent in Production Report group 3"],
+	111:[ key: "group1ReportIntervalConsumption", title: "Group 1 Consumption time interval", type: "number", size: 4, def: 3600, min: 1, max: 4294967295, 
+        desc: "Set the interval time of sending report in Consumption Report group 1"],
+	112:[ key: "group2ReportIntervalConsumption", title: "Group 2 Consumption time interval", type: "number", size: 4, def: 7200, min: 1, max: 4294967295, 
+        desc: "Set the interval time of sending report in Consumption Report group 2"],
+	113:[ key: "group3ReportIntervalConsumption", title: "Group 3 Consumption time interval", type: "number", size: 4, def: 7200, min: 1, max: 4294967295, 
+        desc: "Set the interval time of sending report in Consumption Report group 3"],
+	114:[ key: "group1ReportIntervalProduction", title: "Group 1 Production time interval", type: "number", size: 4, def: 3600, min: 1, max: 4294967295, 
+        desc: "Set the interval time of sending report in Production Report group 1"],
+	115:[ key: "group2ReportIntervalProduction", title: "Group 2 Production time interval", type: "number", size: 4, def: 7200, min: 1, max: 4294967295, 
+        desc: "Set the interval time of sending report in Production Report group 2"],
+	116:[ key: "group3ReportIntervalProduction", title: "Group 3 Production time interval", type: "number", size: 4, def: 7200, min: 1, max: 4294967295, 
+        desc: "Set the interval time of sending report in Production Report group 3"]
 ]
 
 // Handle device installation
@@ -287,7 +320,7 @@ void installed() {
 }
 // Handle device removal
 def uninstalled() {
-	logDebug "${device.label} uninstalled()"
+	logInfo "${device.label} uninstalled()"
 	if (childDevices) {
 		logDebug "removing child devices"
 		removeChildDevices(getChildDevices())
@@ -306,10 +339,10 @@ void updated() {
     unschedule()
     createChildDevices()
    	List<hubitat.zwave.Command> commands = []
-    for ( param in parameterMap ) {
-      	if ( this["$param.key"] != null && (state."$param.key".toString() != this["$param.key"].toString() )) {
-          	commands << zwave.configurationV4.configurationSet(scaledConfigurationValue: this["$param.key"].toInteger(), parameterNumber: param.num, size: param.size)
-      	}
+    parameterMap.eachWithIndex {pnum, param, i ->
+      if ( this["$param.key"] != null && (state."$param.key".toString() != this["$param.key"].toString() )) {
+        commands << zwave.configurationV4.configurationSet(scaledConfigurationValue: this["$param.key"].toInteger(), parameterNumber: pnum, size: param.size)
+      }
     }
     runCommandsWithInterstitialDelay(commands, 300)
     runIn(10, 'getConfig')
@@ -344,9 +377,9 @@ void resetEnergy(Integer ep = null) {
 private void getConfig() {
     logDebug "Entering getConfig()"
    	List<hubitat.zwave.Command> commands = []
-    for ( param in parameterMap ) {
+    parameterMap.eachWithIndex {pnum, param, i ->
       if ( this["$param.key"] != null && state."$param.key".toString() != this["$param.key"].toString() ) {
-          commands << zwave.configurationV4.configurationGet(parameterNumber: param.num)
+          commands << zwave.configurationV4.configurationGet(parameterNumber: pnum)
       } 
     }
     commands << zwave.versionV3.versionGet()
@@ -478,9 +511,6 @@ void zwaveEvent(hubitat.zwave.commands.meterv5.MeterReport cmd, int endpoint = 0
       	logWarn "Scale not implemented. ${cmd.scale}, ${cmd.scale2}: ${cmd.scaledMeterValue}"
     }
 }
-//COMMAND_CLASS_CRC_16_ENCAP V1
-// CRC16 handled by Hubitat C-7
-
 //COMMAND_CLASS_MULTI_CHANNEL V4
 void zwaveEvent(hubitat.zwave.commands.multichannelv4.MultiChannelCmdEncap cmd) {
     logDebug "Entering zwaveEvent(hubitat.zwave.commands.multichannelv4.MultiChannelCmdEncap cmd)"
@@ -497,10 +527,32 @@ void zwaveEvent(hubitat.zwave.commands.multichannelassociationv3.MultiChannelAss
 }
 //COMMAND_CLASS_CONFIGURATION V1
 void zwaveEvent(hubitat.zwave.commands.configurationv1.ConfigurationReport cmd) {
-    logInfo "$device.displayName has value '$cmd.scaledConfigurationValue' for property with ID '$cmd.parameterNumber'"
+  logDebug "zwaveEvent(ConfigurationReport) - cmd: ${cmd.inspect()}"
+  def newVal = cmd.scaledConfigurationValue.toInteger()
+  
+  Map param = parameterMap[cmd.parameterNumber.toInteger()]
+  
+  if (param) {
+    def curVal = device.getSetting(param.key)
+    if (param.type == "bool") { curVal = curVal == false ? 0 : 1}
+    try {
+      curVal = curVal.toInteger()
+    }catch(Exception ex) {
+       logWarn "Undefined parameter ${curVal}."
+       curVal = null
+    }
+    Long sizeFactor = Math.pow(256,cmd.size).round()
+	  if (newVal < 0) { newVal += sizeFactor }
+    if (curVal != newVal) {
+      if (param.type == "enum") { newVal = newVal.toString()}
+      if (param.type == "bool") { newVal = newVal == 0 ? false: true}
+      device.updateSetting(param.key, [value: newVal, type: param.type])
+      logDebug "Updating device parameter setting ${cmd.parameterNumber} from ${curVal} to ${newVal}."
+    }
+  } else {
+    logWarn "Unsupported parameter ${cmd.parameterNumber}."
+  }
 }
-//COMMAND_CLASS_ASSOCIATION_GRP_INFO V1
-    //We don't need to support this one. 
 //COMMAND_CLASS_ASSOCIATION V2
 void zwaveEvent(hubitat.zwave.commands.associationv2.AssociationReport cmd) {
     logDebug 'hubitat.zwave.commands.associationv2.AssociationReport'
@@ -509,12 +561,6 @@ void zwaveEvent(hubitat.zwave.commands.associationv2.AssociationReport cmd) {
     }
     state.associatedNodes[cmd.groupingIdentifier] = cmd.nodeId
 }
-//COMMAND_CLASS_FIRMWARE_UPDATE_MD  V2
-    //No Need for us to do anything with this CC
-//COMMAND_CLASS_POWERLEVEL V1
-    //Not going to handle this here, info is available on Z-Wave Settings page
-//COMMAND_CLASS_SECURITY V1
-    // Security handled by Hubitat on C-7
 //COMMAND_CLASS_DEVICE_RESET_LOCALLY V1
 void zwaveEvent(hubitat.zwave.commands.deviceresetlocallyv1.DeviceResetLocallyNotification cmd) {
     logErr "WARNING: $device.displayName sent a DeviceResetLocallyNotification!"
@@ -523,6 +569,42 @@ void zwaveEvent(hubitat.zwave.commands.deviceresetlocallyv1.DeviceResetLocallyNo
 void zwaveEvent(hubitat.zwave.commands.multichannelv4.MultiChannelEndPointReport cmd) {
     logDebug "MultiChannelEndPointReport: dynamic: ${cmd.dynamic} endPoints: ${cmd.endPoints} identical: ${cmd.identical}"
     createChildDevices()
+}
+//COMMAND_CLASS_SUPERVISION V1
+void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
+  logDebug "zwaveEvent(SupervisionGet) - cmd: ${cmd.inspect()}"
+  hubitat.zwave.Command encapsulatedCommand = cmd.encapsulatedCommand(commandClasses)
+  if (encapsulatedCommand) {
+    logDebug "zwaveEvent(SupervisionGet) - encapsulatedCommand: ${encapsulatedCommand}"
+    zwaveEvent(encapsulatedCommand)
+  } else {
+    logErr "SupervisionGet - Non-parsed - description: ${description?.inspect()}"
+  }
+  runCommand zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID, reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0)
+}
+//COMMAND_CLASS_FIRMWARE_UPDATE_MD V5
+void zwaveEvent(hubitat.zwave.commands.firmwareupdatemdv5.FirmwareMdReport cmd) {
+  logDebug "zwaveEvent(FirmwareMdReport) - cmd: ${cmd.inspect()}"
+  logInfo "Starting firmware update process..."
+}
+void zwaveEvent(hubitat.zwave.commands.firmwareupdatemdv5.FirmwareUpdateMdRequestReport cmd) {
+  logDebug "zwaveEvent(FirmwareUpdateMdRequestReport) - cmd: ${cmd.inspect()}"
+  if (cmd.status == 255) {
+    logInfo "Valid firmware for device. Firmware update continuing..."
+  } else {
+    logErr "Invalid firmware for device, error code ${cms.status}"
+  }
+}
+void zwaveEvent(hubitat.zwave.commands.firmwareupdatemdv5.FirmwareUpdateMdStatusReport cmd) {
+  logDebug "zwaveEvent(FirmwareUpdateMdStatusReport) - cmd: ${cmd.inspect()}"
+  if (cmd.status == 255) {
+    logInfo "Firmware update succesfully completed."
+  } else {
+    logErr "Error updating firmware for device, error code ${cmd.status}"
+  }
+}
+void zwaveEvent(hubitat.zwave.commands.firmwareupdatemdv5.FirmwareUpdateMdGet  cmd) {
+  logDebug "zwaveEvent(FirmwareUpdateMdGet ) - cmd: ${cmd.inspect()}"
 }
 
 // Logger wrapers
