@@ -28,10 +28,11 @@
 *				Added all device parameters for configuration.
 *				Use of CurrentMeter capability that reports amperage not current, so renamed all as appropriate.
 *     - 1.1: Some code cleanup and enhancements.
+*     - 1.2: Fix for Parameters tab.
 */
 
 import groovy.transform.Field
-@Field String VERSION = "1.1"
+@Field String VERSION = "1.2"
 
 //
 // Driver Definition
@@ -156,7 +157,7 @@ metadata {
             range: (param.min != null && param.max != null) ? "${param.min}..${param.max}" : null,
             defaultValue: param.def,
             description: param.desc,
-            required: param.required
+            required: (param.required) ? true : false
           )
         }
       	input name: 'logEnable', type: 'bool', title: 'Enable Debug Logging', defaultValue: false, required: true
