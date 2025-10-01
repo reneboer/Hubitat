@@ -1,17 +1,17 @@
 {
  "packageName":"Aeotec Smart Switch 7 EU version",
  "author":"Rene Boer",
- "version":"1.4",
+ "version":"1.6",
  "minimumHEVersion":"2.3.6",
- "dateReleased":"2025-9-25",
- "releaseNotes":"1.4 : Some rewrites and code cleanups, removed summary HTML tile, added parameter numbers to preferences screen, removed setAssociations command.\n1.3 : Corrected CLASS_FIRMWARE_UPDATE_MD to V2\n1.2 : Updated parameter 91 description to match V1.3 firmware\n1.1 : Add power poll when turned on or off.\n1.0: Added device Clock update when off on config. Added firmware targets to version report. Moved setting device configuration parameters for update function. Added FirmwareUpdate report handler. Fixed Reset Device function.",
+ "dateReleased":"2025-10-1",
+ "releaseNotes":" 1.6 : More flexibie routines for MeterReport handling, file name correction.\n1.5 : parameter handling fix for non-required.\n 1.4 : Some rewrites and code cleanups, removed summary HTML tile, added parameter numbers to preferences screen, removed setAssociations command.\n1.3 : Corrected CLASS_FIRMWARE_UPDATE_MD to V2\n1.2 : Updated parameter 91 description to match V1.3 firmware\n1.1 : Add power poll when turned on or off.\n1.0: Added device Clock update when off on config. Added firmware targets to version report. Moved setting device configuration parameters for update function. Added FirmwareUpdate report handler. Fixed Reset Device function.",
  "documentationLink":"https://github.com/reneboer/Hubitat/blob/main/Aeotec/README.md",
  "communityLink":"https://community.hubitat.com/t/release-aeotec-smart-switch-driver-7-eu-version/130862",
  "drivers": [
   {
      "id":"449433af-c411-4b3c-93c5-28b7fac21f5f",
      "name":"Aeotec Smart Switch 7 EU",
-     "location":"https://raw.githubusercontent.com/reneboer/Hubitat/main/Aeotec/Aeotec%20Smart%20Swtich%207%20EU%20Driver.groovy",
+     "location":"https://raw.githubusercontent.com/reneboer/Hubitat/refs/heads/main/Aeotec/Aeotec%20Smart%20Switch%207%20EU%20Driver.groovy",
      "required":true
   }
   ]
