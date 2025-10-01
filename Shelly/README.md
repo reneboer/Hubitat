@@ -13,3 +13,8 @@ Version 1.1 changes:
 * Removed Notification report, not officially supported.
 * Added FirmwareUpdate report handler.
 * Fix for powerLow status value.
+
+
+# Shelly Wave Plug S EU Driver
+
+Hubitat driver for Shelly Wave Plug S EU version QNPL-0A112EU. 
