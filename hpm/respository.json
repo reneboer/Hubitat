@@ -50,6 +50,13 @@
 			"tags": [ "Lights & Switches", "ZWave" ],
 			"location": "https://raw.githubusercontent.com/reneboer/Hubitat/main/Shelly/packageManifest.json",
 			"description": "Driver for Wave 1PM QNSW-0001P16EU by Shelly."
+		},
+		{
+			"name": "Shelly Wave Plug S EU QNPL-0A112EU",
+			"category": "Integrations",
+			"tags": [ "Lights & Switches", "ZWave", "Energy Monitoring" ],
+			"location": "https://raw.githubusercontent.com/reneboer/Hubitat/main/Shelly/packageManifestPS.json",
+			"description": "Driver for Wave Plug S EU QNPL-0A112EU by Shelly."
 		}
 
 	]
