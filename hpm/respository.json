@@ -57,6 +57,13 @@
 			"tags": [ "Lights & Switches", "ZWave", "Energy Monitoring" ],
 			"location": "https://raw.githubusercontent.com/reneboer/Hubitat/main/Shelly/packageManifestPS.json",
 			"description": "Driver for Wave Plug S EU QNPL-0A112EU by Shelly."
+		},
+		{
+			"name": "Shelly Wave Pro Dimmer 2PM QPDM-0A2P01EU",
+			"category": "Integrations",
+			"tags": [ "Lights & Switches", "ZWave", "Energy Monitoring" ],
+			"location": "https://raw.githubusercontent.com/reneboer/Hubitat/main/Shelly/packageManifestD2PM.json",
+			"description": "Driver for Wave Pro Dimmer 2PM QPDM-0A2P01EU by Shelly."
 		}
 
 	]
