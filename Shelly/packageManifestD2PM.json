@@ -1,0 +1,18 @@
+{
+  "packageName": "Shelly Wave Pro Dimmer 2PM QPDM-0A2P01EU",
+  "author": "Rene Boer",
+  "version": "1.1",
+  "minimumHEVersion": "2.4.0",
+  "dateReleased": "2026-05-03",
+  "releaseNotes": "First release.",
+  "documentationLink": "https://github.com/reneboer/Hubitat/tree/main/Shelly",
+  "communityLink": "https://community.hubitat.com/t/release-shelly-wave-pro-dimmer-2pm-driver/163684",
+  "drivers": [
+    {
+      "id": "d1c7a76f-1c66-4068-9179-42c9a0cefc75",
+      "name": "Shelly Wave Plug S EU QNPL-0A112EU",
+      "location": "https://raw.githubusercontent.com/reneboer/Hubitat/refs/heads/main/Shelly/Shelly%20Wave%20PRO%20Dimmer%202PM%20Driver.groovy",
+      "required": true
+    }
+  ]
+}
