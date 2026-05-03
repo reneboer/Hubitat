@@ -29,6 +29,6 @@ Upload this driver before including the device. After inclusion go to the Prefer
 dimmer outputs. The buttons are handled by the main device, although the driver can quickly be changed to have child devices for those as well. The buttons will only send 
 the events when the Switch type is set to Push Button and is in Detached mode. In Normal mode, any switch attached to the SW1-4 inputs will control the matching output.
 
-After physical installation with the loads you will use you should calibate the outputs by running the Force Dimmer Calibration commands.
+After physical installation with the loads you will use you should calibrate the outputs by running the Force Dimmer Calibration commands.
 
 Full device instructions can be found at https://kb.shelly.cloud/knowledge-base/shelly-wave-pro-dimmer-2pm-eu
