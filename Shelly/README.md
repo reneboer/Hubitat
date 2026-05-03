@@ -18,3 +18,17 @@ Version 1.1 changes:
 # Shelly Wave Plug S EU Driver
 
 Hubitat driver for Shelly Wave Plug S EU version QNPL-0A112EU. 
+
+# Shelly  Wave Pro Dimmer 2PM Driver
+
+Hubitat driver for Shelly Wave Pro Dimmer 2PM QPDM-0A2P01EU. Make sure you have the 12.07 or later firmware for the device from Shelly else it does not operate as advertised.
+Get the firware at [FW Wave Pro Dimmer 2PM QPDM-0A2P01EU](https://github.com/QubinoHelp/Shelly_Wave_FW_OTA/tree/main/Wave_Pro_Dimmer_2PM). You must change the file name to 
+upload it to the Hubitat Device Firmware Updater app.
+
+Upload this driver before including the device. After inclusion go to the Preferences and click Save. This will create the two child Dimmer devices that will control the 
+dimmer outputs. The buttons are handled by the main device, although the driver can quickly be changed to have child devices for those as well. The buttons will only send 
+the events when the Switch type is set to Push Button and is in Detached mode. In Normal mode, any switch attached to the SW1-4 inputs will control the matching output.
+
+After physical installation with the loads you will use you should calibate the outputs by running the Force Dimmer Calibration commands.
+
+Full device instructions can be found at https://kb.shelly.cloud/knowledge-base/shelly-wave-pro-dimmer-2pm-eu
