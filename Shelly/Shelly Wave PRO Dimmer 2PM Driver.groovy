@@ -1,20 +1,21 @@
 /**
  *  Shelly Wave Pro Dimmer 2PM QPDM-0A2P01EU
  *  Device Handler
- *  Date: 05.03.2026
+ *  Date: 05.05.2026
  *  Author: Rene Boer
  *  Copyright , none free to use
  *
  *  See https://kb.shelly.cloud/knowledge-base/shelly-wave-pro-dimmer-2pm-eu for full details on device.
- *  Note: as of now the device is still not working as advertised. The buttons only work in push mode (1), Toggle state mode (2) does not work at all, and Toggle change (3) both outputs react to each button. Shelly is aware
+ *  Note: Make sure to use firmware 12.06 or later on the device for propper operation.
  *
  *  CHANGELOG:
  *  1.0: First release
  *  1.1: Added setCentralSceneRefreshRate
+ *  1.2: Debug logging also set child devices logging
  */
 import groovy.transform.Field
 
-@Field static String VERSION = "1.1"
+@Field static String VERSION = "1.2"
 @Field static String DRIVER_NAME = "Shelly Wave Pro Dimmer 2PM"
 
 // When commented out, there is no specific handler routine in this driver for the device
@@ -286,6 +287,14 @@ void updated() {
     runCommandsWithInterstitialDelay(commands, 300)
     runInMillis((commands.size() * 300) + 300, 'getConfig')
   }
+  // Turn on/off debug logging for any child device
+  if (childDevices) {
+    childDevices.each {
+      it.updateSetting("logEnable",[value:logEnable,type:"bool"])
+      it.updateSetting("txtEnable",[value:txtEnable,type:"bool"])
+    }
+  }
+  // Schedule turning off debug logging in an hour
   if (logEnable) runIn(3600, 'logsOff')
 }
 
@@ -678,7 +687,7 @@ void zwaveEvent(hubitat.zwave.commands.firmwareupdatemdv5.FirmwareUpdateMdGet  c
 */
 // We only create the two dimmer child devices, not the four switches for now.
 private void createChildDevices() {
-  	logDebug "${device.label} creating child devices"
+  	logDebug "${device.label} creating child devices if missing"
   	def childDev
   	String devLabel
   	String devID
@@ -702,6 +711,7 @@ private void createChildDevices() {
               runIn(6, 'newChildSwitchOff', [overwrite: false, data: [endPoint: it]])
      				}
      				if (epd.type == "SW") childDev.sendEvent(name: "numberOfButtons", value: 1)
+          	logDebug "Created child device ${devLabel}, ID: ${devID}"
           }
     		}
 		}
@@ -765,6 +775,12 @@ private void getConfig() {
 private void logsOff(){
   logWarn "debug logging disabled..."
   device.updateSetting("logEnable",[value:"false",type:"bool"])
+  // Turn off for any child device
+  if (childDevices) {
+    childDevices.each {
+      it.updateSetting("logEnable",[value:"false",type:"bool"])
+    }
+  }
 }
 // Set assoc so child devices report changes properly.
 private void configureAssocsCmds() {
