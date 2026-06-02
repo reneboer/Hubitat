@@ -32,3 +32,12 @@ the events when the Switch type is set to Push Button and is in Detached mode. I
 After physical installation with the loads you will use you should calibrate the outputs by running the Force Dimmer Calibration commands.
 
 Full device instructions can be found at https://kb.shelly.cloud/knowledge-base/shelly-wave-pro-dimmer-2pm-eu
+
+Version 1.3 changes: 
+* Added attribute for central scene refresh rate. Definition commands do not have default.
+
+Version 1.2 changes: 
+* Debug logging also set child devices logging
+
+Version 1.1 changes: 
+* Added setCentralSceneRefreshRate
