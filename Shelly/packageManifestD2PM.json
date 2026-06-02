@@ -10,7 +10,7 @@
   "drivers": [
     {
       "id": "d1c7a76f-1c66-4068-9179-42c9a0cefc75",
-      "name": "Shelly Wave Plug S EU QNPL-0A112EU",
+      "name": "Shelly Wave Pro Dimmer 2PM QPDM-0A2P01EU",
       "location": "https://raw.githubusercontent.com/reneboer/Hubitat/refs/heads/main/Shelly/Shelly%20Wave%20PRO%20Dimmer%202PM%20Driver.groovy",
       "required": true
     }
