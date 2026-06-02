@@ -1,7 +1,7 @@
 /**
  *  Shelly Wave Pro Dimmer 2PM QPDM-0A2P01EU
  *  Device Handler
- *  Date: 05.05.2026
+ *  Date: 02.06.2026
  *  Author: Rene Boer
  *  Copyright , none free to use
  *
@@ -12,10 +12,11 @@
  *  1.0: First release
  *  1.1: Added setCentralSceneRefreshRate
  *  1.2: Debug logging also set child devices logging
+ *  1.3: Added attribute for central scene refresh rate. Definition commands do not have default.
  */
 import groovy.transform.Field
 
-@Field static String VERSION = "1.2"
+@Field static String VERSION = "1.3"
 @Field static String DRIVER_NAME = "Shelly Wave Pro Dimmer 2PM"
 
 // When commented out, there is no specific handler routine in this driver for the device
@@ -204,12 +205,14 @@ metadata {
     capability "HoldableButton"
     capability "ReleasableButton"
     capability "DoubleTapableButton"
-      
-    command "setCentralSceneRefreshRate", [[name: "Send held down notifications at slow rate*", type: "ENUM", description: "When true the KeyHeldDown notifications are send every 55s. Whan false, the notifications are send every 200ms", default: "False", constraints: ["False", "True"]]]
-    command "forceDimmerCalibration", [[name: "Force Dimmer calibration*", type: "ENUM", description: "Device will start executing force calibration procedure for the selected channel", default: "O1", constraints: ["O1", "O2"]]]
+          
+    command "setCentralSceneRefreshRate", [[name: "Send held down notifications at slow rate*", type: "ENUM", description: "When true the KeyHeldDown notifications are send every 55s. Whan false, the notifications are send every 200ms", constraints: ["False", "True"]]]
+    command "forceDimmerCalibration", [[name: "Force Dimmer calibration*", type: "ENUM", description: "Device will start executing force calibration procedure for the selected channel", constraints: ["O1", "O2"]]]
     command "resetPower" //command to issue Meter Reset commands to reset accumulated power measurements
-    command "remoteReboot", [[name: "Reboot device*", type: "ENUM", description: "Reboot the device. Use for troubleshooting only.", default: "Please select", constraints: ["Please select", "Do nothing", "Perform reboot"]]] // Send remote reboot command to device
+    command "remoteReboot", [[name: "Reboot device*", type: "ENUM", description: "Reboot the device. Use for troubleshooting only.", constraints: ["Do nothing", "Perform reboot"]]] // Send remote reboot command to device
 	  command "identify" // implements the Z-Wave Plus identify function which can flash device indicators.
+
+    attribute "centralSceneRefreshRate", "enum", ["False", "True"] // Report current value based on CentralSceneNotification and CentralSceneConfigurationReport
       
     fingerprint mfr: "0460", prod: "0001", deviceId: "0082", deviceJoinName: DRIVER_NAME
     fingerprint mfr: "0460", prod: "0001", deviceId: "0082", inClusters: "0x5E,0x98,0x9F,0x55,0x6C", secureInClusters: "0x26,0x71,0x32,0x85,0x59,0x8E,0x5B,0x5A,0x7A,0x87,0x60,0x73,0x86,0x70,0x72", deviceJoinName: DRIVER_NAME
@@ -261,7 +264,7 @@ void uninstalled() {
 
 // Device gets configured after install or when user click Configure
 void configure() {
-  logInfo "${device.label}  configure()"
+  logInfo "${device.label} configure()"
   if (NUMBER_OF_ENDPOINTS == 2) {
     sendEvent(name: "numberOfButtons", value: NUMBER_OF_BUTTONS)
   }
@@ -276,7 +279,8 @@ void updated() {
   logWarn "description logging is: ${txtEnable == true}"
   unschedule()
 	List<hubitat.zwave.Command> commands = [
-		zwave.multiChannelV4.multiChannelEndPointGet()  // Triggers create child devices if not existing.
+		zwave.multiChannelV4.multiChannelEndPointGet(),  // Triggers create child devices if not existing.
+    zwave.centralSceneV3.centralSceneConfigurationGet()  // Get refresh rate
   ]
   parameterMap.eachWithIndex {pnum, param, i ->
     if (!param.ro && this["$param.key"] != null && (state."$param.key".toString() != this["$param.key"].toString() )) {
@@ -285,7 +289,7 @@ void updated() {
   }
   if (commands.size() > 0) {
     runCommandsWithInterstitialDelay(commands, 300)
-    runInMillis((commands.size() * 300) + 300, 'getConfig')
+    runInMillis((commands.size() * 300), 'getConfig')
   }
   // Turn on/off debug logging for any child device
   if (childDevices) {
@@ -302,7 +306,7 @@ void updated() {
 void refresh(ep = 0) {
 	logDebug "refresh(ep : ${ep})"
   if (childDevices) {
-  	List<hubitat.zwave.Command> commands=[]
+  	List<hubitat.zwave.Command> commands=[zwave.centralSceneV3.centralSceneConfigurationGet()]
   	meterReportTypes.each { scale, data ->
       commands << zwave.meterV3.meterGet(scale: scale)
     }
@@ -459,11 +463,18 @@ void zwaveEvent(hubitat.zwave.Command cmd, ep=0) {
   logWarn "zwaveEvent(Command) - No specific handler - ep: ${ep}, cmd: ${cmd.inspect()}"
 }
 
+// Handle CentralSceneConfigurationReport
+void zwaveEvent(hubitat.zwave.commands.centralscenev3.CentralSceneConfigurationReport cmd, ep=0) {
+  logDebug "zwaveEvent(CentralSceneConfigurationReport) - ${cmd}"
+  updateCentralSceneRefreshRate(cmd.slowRefresh)
+}
+
 // Handle button push when in Detached Push Botton mode. Not received in other modes.
 void zwaveEvent(hubitat.zwave.commands.centralscenev3.CentralSceneNotification cmd, ep = 0) {
   logDebug "zwaveEvent(CentralSceneNotification ${cmd}, endpoint = ${ep})"
   Integer button = cmd.sceneNumber
   Integer key = cmd.keyAttributes
+  Boolean refreshRate = cmd.slowRefresh
   String action
   switch (key){
     case 0: //pushed
@@ -487,6 +498,7 @@ void zwaveEvent(hubitat.zwave.commands.centralscenev3.CentralSceneNotification c
     } else {
       sendButtonEvent(action, 1, "physical", button + 2)
     }
+    updateCentralSceneRefreshRate(cmd.slowRefresh)
   }
 }
 
@@ -637,6 +649,7 @@ void zwaveEvent(hubitat.zwave.commands.centralscenev3.CentralSceneSupportedRepor
 			supportedKeyAttributes:[[sceneNumber:1, keyPress1x:true, keyRelease:true, keyHold:true, keyPress2x:true, keyPress3x:false, keyPress4x:false, keyPress5x:false]]
 	)
   */
+  updateCentralSceneRefreshRate(cmd.slowRefresh)
 }
 
 // Handle super vision if included secure.
@@ -762,6 +775,10 @@ private void sendButtonEvent(action, button, type, Integer ep = 0){
     }	  
   }	  
 }
+// Update central scene refresh rate attribute
+private void updateCentralSceneRefreshRate(Boolean slowRefresh){
+  sendEventWrapper(name: "centralSceneRefreshRate", value: slowRefresh ? "True":"False")
+}
 // Request configuration parameters from device.
 private void getConfig() {
   logDebug 'getConfig()'
@@ -881,7 +898,7 @@ private void sendEventWrapper(Map evt, Integer ep = 0) {
   if (device.currentValue(evt.name).toString() != evt.value.toString() || evt.isStateChange) {
     logInfo "${evt.descriptionText}"
   } else {
-    logDebug "${evt.descriptionText} [NOT CHANGED]"
+    logDebug "${evt.descriptionText} [Not changed]"
   }
   // Always send event to update last activity
   sendEvent(evt)
