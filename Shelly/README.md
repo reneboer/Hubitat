@@ -19,6 +19,12 @@ Version 1.1 changes:
 
 Hubitat driver for Shelly Wave Plug S EU version QNPL-0A112EU. 
 
+Version 1.1 changes: 
+* Added findDevice command. Will flash LED to identify installed device.
+* Added missed SupervisionReport handler.
+* Setting ass grp 1 to Hub on update as device seems to loose it.
+  
+
 # Shelly  Wave Pro Dimmer 2PM Driver
 
 Hubitat driver for Shelly Wave Pro Dimmer 2PM QPDM-0A2P01EU. Make sure you have the 12.07 or later firmware for the device from Shelly else it does not operate as advertised.
