@@ -1,32 +1,34 @@
 /**
  *  Shelly Wave Plug S EU QNPL-0A112EU
  *  Device Handler
- *  Version 1.0
- *  Date: 1.10.2025
+ *  Date: 29.10.2025
  *  Author: Rene Boer
  *  Copyright , none free to use
  *
  * |---------------------------- DEVICE HANDLER FOR SHELL WAVE PLUG S EU Z-WAVE DEVICE -------------------------------------------------------|
  *    The handler supports all functions of the Shelly Wave Plug S EU QNPL-0A112EU device, EU version. Configuration parameters can be set in the 
  *    device's preferences screen.
+ *    For device details see: https://kb.shelly.cloud/knowledge-base/shelly-wave-plug-s-eu
  *  Note: US and UK versions may not work as the Firmware seems to be different.
+ *  Note: Driver requires minimal firmaware version 11.3.
  * |-----------------------------------------------------------------------------------------------------------------------------------------------|
  *
  *  TO-DO:
  *
  *  CHANGELOG:
- *  1.0 : First release
+ *  1.0: First release
+ *  1.1: Added findDevice command. Will flash LED to identify installed device. Added missed SupervisionReport handler. Setting ass grp 1 to Hub on update as device seems to loose it.
  */
 import groovy.transform.Field
 
-@Field String VERSION = "1.0"
+@Field String VERSION = "1.1"
 
 // When commented out, there is no specific handler routine in this driver for the device
 @Field static Map CMD_CLASS_VERS = [
   0x70: 4, // COMMAND_CLASS_CONFIGURATION V4 
 //  0x20: 2, // COMMAND_CLASS_BASIC V2
 //  0x59: 3, // COMMAND_CLASS_ASSOCIATION_GRP_INFO V3
-//  0x85: 2, // COMMAND_CLASS_ASSOCIATION_V2 
+  0x85: 2, // COMMAND_CLASS_ASSOCIATION_V2 
   0x71: 8, // COMMAND_CLASS_NOTIFICATION_V8
   0x32: 5, // COMMAND_CLASS_METER V5
   0x25: 2, // COMMAND_CLASS_SWITCH_BINARY V2
@@ -37,7 +39,7 @@ import groovy.transform.Field
   0x5E: 2, // COMMAND_CLASS_ZWAVEPLUS_INFO_V2
 //  0x55: 2, // COMMAND_CLASS_TRANSPORT_SERVICE_V2
   0x6C: 1, // COMMAND_CLASS_SUPERVISION_V1
-//  0x87: 3, // COMMAND_CLASS_INDICATOR V3
+  0x87: 3, // COMMAND_CLASS_INDICATOR V3
   0x7A: 5, // COMMAND_CLASS_FIRMWARE_UPDATE_MD V5
 //  0x8E: 3, // COMMAND_CLASS_MULTICHANNEL_ASSOCIATION V3
   0x98: 1, // COMMAND_CLASS_SECURITY V1
@@ -85,7 +87,7 @@ import groovy.transform.Field
 ]
 
 metadata {
-  definition(name: 'Shelly Wave Plug S EU', namespace: "reneboer", author: "Rene Boer", importUrl: "https://github.com/reneboer/Hubitat/blob/main/Shelly/Shelly%20Wave%20Plug%20S%20EU%20Driver.groovy") {
+  definition(name: 'Shelly Wave Plug S EU', namespace: "reneboer", author: "Rene Boer", importUrl: "https://raw.githubusercontent.com/reneboer/Hubitat/refs/heads/main/Shelly/Shelly%20Wave%20Plug%20S%20EU%20Driver.groovy") {
     capability 'Actuator'
     capability 'Switch'
     capability 'Outlet'
@@ -97,7 +99,8 @@ metadata {
     attribute  'powerHigh', 'number'
     attribute  'powerLow', 'number'
 
-    command 'resetPower' //command to issue Meter Reset commands to reset accumulated power measurements
+    command 'findDevice', [[name: "Find device", description: "Find the device by flashing the LED ring red 10 times."]] // Find device by flashing LED ring
+    command 'resetPower', [[name: "Reset Power", description: "Reset the Energy measurement and PowerHigh/Low to zero."]] //command to issue Meter Reset commands to reset accumulated power measurements
     command 'remoteReboot', [[name: "Reboot device*", type: "ENUM", description: "Reboot the device. Use for troubleshooting only.", default: "Please select", constraints: ["Please select", "Do nothing", "Perform reboot"]]] // Send remote reboot command to device
 
     fingerprint mfr:"0460", prod:"0002", deviceId: "0087", inClusters:"0x5E,0x98,0x9F,0x55,0x6C", secureInClusters: "0x85,0x59,0x8E,0x5A,0x7A,0x87,0x71,0x73,0x86,0x25,0x70,0x72,0x32", deviceJoinName: "Shelly Wave Plug S"
@@ -132,7 +135,7 @@ void logsOff(){
 void installed() {
   logInfo "installed(${VERSION})"
   runIn (10, 'getConfig')  // Get current device config after installed.
-  runIn (15, 'refresh')  // Get current device config after installed.
+  runIn (15, 'refresh')  // Get power readings.
 }
 // Handle device removal
 def uninstalled() {
@@ -145,8 +148,10 @@ void updated() {
   logWarn "description logging is: ${txtEnable == true}"
   unschedule()
   if (logEnable) runIn(3600, logsOff)
-  runIn (10, 'getConfig')  // Get current device config after updated.
-  List<hubitat.zwave.Command> commands=[]
+  runIn (20, 'getConfig')  // Get current device config after updated.
+  List<hubitat.zwave.Command> commands=[
+    zwave.associationV2.associationSet(groupingIdentifier:1, nodeId:1) // Seems to loose it sometimes.
+  ]
   parameterMap.eachWithIndex {pnum, param, i ->
    	if ( this["$param.key"] != null && (state."$param.key".toString() != this["$param.key"].toString() )) {
      	commands << zwave.configurationV4.configurationSet(scaledConfigurationValue: this["$param.key"].toInteger(), parameterNumber: pnum, size: param.size)
@@ -196,6 +201,19 @@ void remoteReboot(flag) {
   }
 }
 
+void findDevice() {
+//  runCommand zwave.indicatorV3.indicatorSupportedGet (indicatorId: 0x50)
+//  runCommand zwave.indicatorV3.indicatorGet (indicatorId: 0x50)
+  // Resp: IndicatorSupportedReport(indicatorId:80, nextIndicatorId:0, bitMaskLength:1, multiLevel:false, binary:false, togglingPeriods:true, togglingCycles:true, togglingOnTime:true, timeoutMinutes:false, timeoutSeconds:false, timeoutCentiSeconds:false, multilevelSound:false, lowPower:false)
+  
+  Short indId = 0x50
+  Short togglingPeriods = 0x0A
+  Short togglingCycles = 0x0A
+  Short togglingOnTime = 0x30
+  List<Map<String, Short>> indicators = [["indicatorId": indId, "propertyId": 0x03, "value": togglingPeriods], ["indicatorId": indId, "propertyId": 0x04, "value": togglingCycles], ["indicatorId": indId, "propertyId": 0x05, "value": togglingOnTime]]
+  runCommand zwave.indicatorV3.indicatorSet (indicatorCount: 3, value: 1, indicatorValues: indicators)
+}
+
 // Request parameters from device.
 private void getConfig() {
     logDebug 'getConfig()'
@@ -213,8 +231,7 @@ private void getConfig() {
 *	--------	EVENT PARSER SECTION	--------
 */
 void parse(String description) {
-  logDebug "Entering parse()"
-  logDebug "description: ${description.inspect()}"
+//  logDebug "parse(), description: ${description.inspect()}"
   hubitat.zwave.Command cmd = zwave.parse(description, CMD_CLASS_VERS)
   if (cmd) {
     zwaveEvent(cmd)
@@ -225,6 +242,10 @@ void parse(String description) {
 
 void zwaveEvent(hubitat.zwave.Command cmd, ep = 0) {
   logWarn "zwaveEvent(Command) - No specific handler - cmd: ${cmd.inspect()}"
+}
+
+void zwaveEvent(hubitat.zwave.commands.associationv2.AssociationReport cmd) {
+  logDebug "zwaveEvent(MeterReport) - cmd: ${cmd.inspect()}"
 }
 
 void zwaveEvent(hubitat.zwave.commands.meterv5.MeterReport cmd) {
@@ -308,8 +329,16 @@ void zwaveEvent(hubitat.zwave.commands.versionv3.VersionReport cmd) {
     }
   }
 }
-void zwaveEvent(hubitat.zwave.commands.versionv3.VersionCommandClassReport  cmd) {
+void zwaveEvent(hubitat.zwave.commands.versionv3.VersionCommandClassReport cmd) {
   logDebug "zwaveEvent(VersionCommandClassReport ) - cmd: ${cmd.inspect()}"
+}
+
+void zwaveEvent(hubitat.zwave.commands.indicatorv3.IndicatorReport cmd) {
+  logDebug "zwaveEvent(IndicatorReport  ) - cmd: ${cmd.inspect()}"
+}
+
+void zwaveEvent(hubitat.zwave.commands.indicatorv3.IndicatorSupportedReport cmd) {
+  logDebug "zwaveEvent(IndicatorSupportedReport  ) - cmd: ${cmd.inspect()}"
 }
 
 void zwaveEvent(hubitat.zwave.commands.notificationv4.NotificationReport cmd) {
@@ -377,6 +406,21 @@ void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionGet cmd) {
     logErr "SupervisionGet - Non-parsed - description: ${description?.inspect()}"
   }
   runCommand zwave.supervisionV1.supervisionReport(sessionID: cmd.sessionID, reserved: 0, moreStatusUpdates: false, status: 0xFF, duration: 0)
+}
+// Handle S2 Suportvision get. No multi channel support.
+void zwaveEvent(hubitat.zwave.commands.supervisionv1.SupervisionReport cmd) {
+  logDebug "zwaveEvent(SupervisionReport) - cmd: ${cmd.inspect()}"
+  if (!supervisedPackets."${device.id}") { supervisedPackets."${device.id}" = [:] }
+  switch (cmd.status as Integer) {
+    case 0x00: // "No Support"
+    case 0x01: // "Working"
+    case 0x02: // "Failed"
+      logger("warn", "Supervision NOT Successful - SessionID: ${cmd.sessionID}, Status: ${cmd.status}")
+      break
+    case 0xFF: // "Success"
+      if (supervisedPackets["${device.id}"][cmd.sessionID] != null) { supervisedPackets["${device.id}"].remove(cmd.sessionID) }
+      break
+  }
 }
 
 // ===== Support functions START ======
