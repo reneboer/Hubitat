@@ -1,10 +1,10 @@
 {
  "packageName":"Shelly Wave Plug S EU QNPL-0A112EU",
  "author":"Rene Boer",
- "version":"1.0",
+ "version":"1.1",
  "minimumHEVersion":"2.4.0",
  "dateReleased":"2025-10-01",
- "releaseNotes":"First release.",
+ "releaseNotes":"1.1 Added findDevice command. Will flash LED to identify installed device. Added missed SupervisionReport handler. Setting ass grp 1 to Hub on update as device seems to loose it., 1.0 First release.",
  "documentationLink":"https://github.com/reneboer/Hubitat/tree/main/Shelly",
  "communityLink":"https://community.hubitat.com/t/driver-shelly-wave-plug-s-eu-qnpl-0a112eu/157471",
  "drivers": [
